@@ -1,4 +1,4 @@
-# Plover
+# Plover 
 
 Plover is a modern, headless-browser-style web proxy, designed to be easy to use, customize, and set up.
 Plover consists of two main parts.

@@ -60,14 +60,24 @@ const OS_STYLES = {
 let win = null;
 
 // ------------------------------------------------------------------ store
-let store = loadStore();
+// Loaded below normalize() and its helpers: they are consts, and calling them
+// before their definitions throws.
 
+// A file that exists but cannot be read is copied aside first, so the next
+// save does not overwrite the only copy of the user's servers.
 function loadStore() {
+  let raw;
+  try { raw = fs.readFileSync(STORE_FILE, "utf8"); } catch (_) { return { servers: [] }; }
   try {
-    const s = JSON.parse(fs.readFileSync(STORE_FILE, "utf8"));
+    const s = JSON.parse(raw);
     if (Array.isArray(s.servers)) { s.servers = s.servers.map(normalize); return s; }
-  } catch (_) {}
-  return { servers: [] };
+    throw new Error("no server list");
+  } catch (e) {
+    const backup = STORE_FILE + ".unreadable-" + Date.now();
+    try { fs.copyFileSync(STORE_FILE, backup); } catch (_) {}
+    console.error("Could not load " + STORE_FILE + " (" + e.message + "); kept a copy at " + backup);
+    return { servers: [] };
+  }
 }
 
 function saveStore() {
@@ -146,6 +156,8 @@ function normalizeApps(list) {
   }
   return out;
 }
+
+let store = loadStore();
 
 // Ports not used by any other profile, for a new one.
 function freePorts() {

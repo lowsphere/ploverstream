@@ -1,0 +1,78 @@
+{
+  "name": "plover-server",
+  "productName": "Plover Server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Run your own Plover browser-streaming server and hand out ready-to-use client files",
+  "main": "main.js",
+  "scripts": {
+    "prepare-server": "node scripts/prepare-server.js",
+    "start": "npm run prepare-server && node scripts/start.js",
+    "dist": "npm run prepare-server && electron-builder",
+    "dist:win": "npm run prepare-server && electron-builder --win",
+    "dist:mac": "npm run prepare-server && electron-builder --mac",
+    "dist:linux": "npm run prepare-server && electron-builder --linux"
+  },
+  "devDependencies": {
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "app.plover.server",
+    "productName": "Plover Server",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "runner/**",
+      "renderer/**",
+      "webos/**",
+      "build/icon.png",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "runner/**"
+    ],
+    "extraResources": [
+      {
+        "from": "server",
+        "to": "server",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "Plover Server"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.developer-tools"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Network",
+      "maintainer": "Plover"
+    }
+  },
+  "dependencies": {
+    "puppeteer-core": "~24.43.1",
+    "ws": "^8.22.0"
+  }
+}

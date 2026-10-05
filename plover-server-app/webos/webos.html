@@ -1,0 +1,2826 @@
+<!doctype html>
+<html lang="en" data-style="glassmorphic">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src __PLOVER_CONNECT__; img-src blob: data:; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<title>Plover</title>
+<link id="favicon" rel="icon" href="data:,">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&family=IBM+Plex+Mono:wght@400;500;700&display=swap">
+<!--
+  Plover Web OS: a desktop in one file. Plover Server builds it per server from
+  this template (main.js, buildWebOsHtml): it fills in the server's look and
+  the per-server client.html, which runs unchanged as the Browser app in
+  an iframe written from CLIENT_HTML. A srcdoc frame inherits this page's CSP on
+  top of its own, so connect-src above names the same stream the client does.
+
+  Apps: Browser (the Plover client), Files, Text Editor, Terminal and Settings,
+  plus any single-file HTML apps installed in Plover Server (CFG.apps), each in
+  a sandboxed frame (see "installed apps" below).
+  Files are kept in localStorage under "plover-os:<server id>", in this browser
+  only. Terminal signs in to the server's shell with the token and a password
+  the user types (server.js, lib/terminal.js); the password is never stored.
+  The look (html[data-style], --accent) starts from the server's choice and can
+  be changed in Settings; that choice is kept with the files.
+
+  The fonts come from Google Fonts. Everything else is in this file; without
+  network the desktop falls back to system fonts.
+-->
+<style>
+:root{
+  --accent:#3d6b26; --accent-ink:#ffffff;
+  --font:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Menlo,Consolas,monospace;
+  --display:var(--font);
+  --dock-h:80px; --bar-h:48px; --bar-radius:999px;
+}
+
+/* ================================================================ styles
+   Each style sets the same tokens:
+     --p-*  panels (top bar, clock, dock, desktop tiles)
+     --win-bg  windows, menus and dialogs, which can sit over a white page
+     --w-*  wells (lists, text areas, inputs)       --b-*  buttons
+     --hover / --sel  row states    --ic  file icons    --shade  text shadow  */
+[data-style="glassmorphic"]{
+  --font:"Geist",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --text:#ffffff; --muted:rgba(255,255,255,.8); --faint:rgba(255,255,255,.58);
+  --desk:
+    radial-gradient(70% 60% at 82% 10%,color-mix(in srgb,var(--accent) 55%,#fff) 0%,transparent 70%),
+    radial-gradient(60% 70% at 8% 96%,color-mix(in srgb,var(--accent) 55%,#000) 0%,transparent 70%),
+    color-mix(in srgb,var(--accent) 88%,#000);
+  --p-bg:rgba(255,255,255,.12); --p-border:1.5px solid rgba(255,255,255,.55);
+  --p-shadow:inset 0 0 18px rgba(255,255,255,.18),inset 0 1px 0 rgba(255,255,255,.45),0 20px 44px rgba(0,0,0,.24);
+  --p-filter:blur(22px) saturate(130%); --p-radius:26px; --m-radius:18px;
+  --win-bg:color-mix(in srgb,color-mix(in srgb,var(--accent) 55%,#000) 64%,transparent);
+  --w-bg:rgba(255,255,255,.07); --w-border:1px solid rgba(255,255,255,.36); --w-shadow:inset 0 0 12px rgba(255,255,255,.12); --w-radius:16px;
+  --b-bg:rgba(255,255,255,.1); --b-border:1px solid rgba(255,255,255,.45); --b-shadow:inset 0 0 10px rgba(255,255,255,.14); --b-radius:999px;
+  --hover:rgba(255,255,255,.13); --sel:rgba(255,255,255,.24); --ic:#ffffff;
+  --shade:0 1px 2px rgba(0,0,0,.28);
+  color-scheme:dark;
+}
+/* A pale accent makes a pale wallpaper: dark text, milkier glass. */
+[data-style="glassmorphic"][data-tone="light"]{
+  --text:color-mix(in srgb,var(--accent) 18%,#151515); --muted:color-mix(in srgb,var(--text) 78%,transparent); --faint:color-mix(in srgb,var(--text) 55%,transparent);
+  --p-bg:rgba(255,255,255,.3); --win-bg:rgba(255,255,255,.66);
+  --w-bg:rgba(255,255,255,.35); --b-bg:rgba(255,255,255,.4);
+  --hover:rgba(0,0,0,.06); --sel:rgba(0,0,0,.11); --ic:var(--text); --shade:none;
+  color-scheme:light;
+}
+[data-style="neumorphic"]{
+  --font:"Geist",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --base:color-mix(in srgb,var(--accent) 7%,#e6eae4);
+  --dark:color-mix(in srgb,var(--base) 80%,#000);
+  --text:color-mix(in srgb,var(--accent) 22%,#262b24); --muted:color-mix(in srgb,var(--text) 78%,var(--base)); --faint:color-mix(in srgb,var(--text) 52%,var(--base));
+  --deep:color-mix(in srgb,var(--accent) 80%,#000);
+  --raised:8px 8px 16px var(--dark),-8px -8px 16px #fff;
+  --raised-sm:4px 4px 8px var(--dark),-4px -4px 8px #fff;
+  --inset:inset 4px 4px 8px var(--dark),inset -4px -4px 8px #fff;
+  --desk:var(--base);
+  --p-bg:var(--base); --p-border:0 solid transparent; --p-shadow:var(--raised); --p-filter:none; --p-radius:26px; --m-radius:18px;
+  --win-bg:var(--base);
+  --w-bg:var(--base); --w-border:0 solid transparent; --w-shadow:var(--inset); --w-radius:18px;
+  --b-bg:var(--base); --b-border:0 solid transparent; --b-shadow:var(--raised-sm); --b-radius:14px;
+  --hover:color-mix(in srgb,var(--base) 93%,#000); --sel:color-mix(in srgb,var(--accent) 18%,var(--base)); --ic:var(--deep);
+  --shade:none;
+  color-scheme:light;
+}
+[data-style="brutalist"]{
+  --font:"IBM Plex Mono",ui-monospace,Consolas,monospace; --mono:var(--font);
+  --display:"Archivo Black","Arial Black",Impact,sans-serif;
+  --text:#000; --muted:#333; --faint:#666;
+  --desk:#efece3;
+  --p-bg:#fff; --p-border:3px solid #000; --p-shadow:6px 6px 0 #000; --p-filter:none; --p-radius:0px; --m-radius:0px;
+  --win-bg:#fff;
+  --w-bg:#fff; --w-border:2px solid #000; --w-shadow:none; --w-radius:0px;
+  --b-bg:#fff; --b-border:2px solid #000; --b-shadow:3px 3px 0 #000; --b-radius:0px;
+  --hover:#f1eee4; --sel:var(--accent); --ic:#000;
+  --shade:none; --dock-h:72px; --bar-radius:0px;
+  color-scheme:light;
+}
+[data-style="sleek"]{
+  --font:"Geist",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"Geist Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+  --text:#f3f4f6; --muted:#9ca0a8; --faint:#6b7079;
+  --desk:#0a0b0d;
+  --p-bg:linear-gradient(180deg,#17181c 0%,#121316 100%); --p-border:1px solid rgba(255,255,255,.08);
+  --p-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 16px 40px rgba(0,0,0,.5); --p-filter:none; --p-radius:14px; --m-radius:10px;
+  --win-bg:var(--p-bg);
+  --w-bg:rgba(0,0,0,.28); --w-border:1px solid rgba(255,255,255,.08); --w-shadow:none; --w-radius:10px;
+  --b-bg:rgba(255,255,255,.05); --b-border:1px solid rgba(255,255,255,.08); --b-shadow:none; --b-radius:8px;
+  --hover:rgba(255,255,255,.06); --sel:color-mix(in srgb,var(--accent) 20%,transparent); --ic:var(--accent);
+  --shade:none; --dock-h:68px; --bar-h:44px; --bar-radius:var(--p-radius);
+  color-scheme:dark;
+}
+
+/* ================================================================ base */
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%;overflow:hidden}
+body{font:13px/1.45 var(--font);color:var(--text);background:#000;-webkit-font-smoothing:antialiased;user-select:none}
+button,input,textarea,select{font:inherit;color:inherit}
+svg{display:block;flex:none}
+[data-style="brutalist"] .ic{stroke-linecap:square;stroke-linejoin:miter;stroke-width:2.25px}
+::selection{background:color-mix(in srgb,var(--accent) 45%,transparent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[data-style="glassmorphic"] :focus-visible{outline-color:#fff}
+.grow{flex:1}
+.muted{color:var(--muted)}
+.small{font-size:12px}
+kbd{font:500 10px/1 var(--mono)}
+
+#desktop{position:fixed;inset:0;overflow:hidden;background:var(--desk)}
+.wp{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.wp > *{display:none;position:absolute}
+[data-style="brutalist"] .wp-type{display:block;left:clamp(40px,14vw,220px);top:clamp(120px,24vh,260px);font:400 clamp(150px,26vw,420px)/.82 var(--display);
+  letter-spacing:-.04em;color:transparent;-webkit-text-stroke:2px #000;opacity:.12;white-space:pre-line}
+[data-style="sleek"] .wp-grid{display:block;inset:0;background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:40px 40px}
+[data-style="sleek"] .wp-glow{display:block;right:-12vw;bottom:-22vh;width:65vw;height:65vw;max-width:900px;max-height:900px;border-radius:50%;background:var(--accent);filter:blur(140px);opacity:.12}
+
+/* ---- shared surfaces ---- */
+.panel{background:var(--p-bg);border:var(--p-border);box-shadow:var(--p-shadow);border-radius:var(--p-radius);
+  -webkit-backdrop-filter:var(--p-filter);backdrop-filter:var(--p-filter);color:var(--text);text-shadow:var(--shade)}
+.win.panel,.menu.panel,.dialog.panel,.start-menu.panel,.toast.panel{background:var(--win-bg)}
+.well{background:var(--w-bg);border:var(--w-border);box-shadow:var(--w-shadow);border-radius:var(--w-radius)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;padding:0 12px;flex:none;cursor:pointer;white-space:nowrap;
+  font-size:12.5px;font-weight:500;color:var(--text);text-shadow:inherit;
+  background:var(--b-bg);border:var(--b-border);box-shadow:var(--b-shadow);border-radius:var(--b-radius);transition:background .12s,box-shadow .12s,transform .06s}
+.btn:hover{background:var(--hover)}
+.btn.icon{width:32px;padding:0}
+.btn.primary{background:var(--accent);color:var(--accent-ink);text-shadow:none}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.danger{color:#e5484d}
+.btn.primary.danger{background:#e5484d;color:#fff}
+.btn:disabled{opacity:.45;cursor:default;filter:none}
+[data-style="glassmorphic"] .btn.danger:not(.primary){color:#ffd4d4}
+[data-style="glassmorphic"][data-tone="light"] .btn.danger:not(.primary){color:#c62828}
+[data-style="glassmorphic"] .btn.primary{border-color:rgba(255,255,255,.7)}
+[data-style="neumorphic"] .btn:active:not(:disabled){box-shadow:var(--inset)}
+[data-style="neumorphic"] .btn.primary{box-shadow:var(--raised-sm)}
+[data-style="brutalist"] .btn{text-transform:uppercase;font-weight:700;font-size:11.5px}
+[data-style="brutalist"] .btn:hover:not(:disabled){background:var(--accent);color:var(--accent-ink)}
+[data-style="brutalist"] .btn:active:not(:disabled){transform:translate(2px,2px);box-shadow:1px 1px 0 #000}
+[data-style="brutalist"] .btn.primary{border-color:#000}
+.inp{display:block;width:100%;height:36px;padding:0 12px;outline:none;user-select:text;color:var(--text);text-shadow:none;
+  background:var(--w-bg);border:var(--w-border);box-shadow:var(--w-shadow);border-radius:min(var(--w-radius),12px)}
+.inp:focus{outline:2px solid var(--accent);outline-offset:1px}
+.inp::placeholder{color:var(--faint)}
+input[type=checkbox]{accent-color:var(--accent);margin:0}
+.check{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer}
+
+/* ================================================================ top bar */
+.topbar{position:absolute;left:16px;top:16px;z-index:20;width:min(560px,calc(100% - 300px));height:var(--bar-h);
+  display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 6px 0 18px;border-radius:var(--bar-radius)}
+.tb-left{display:flex;align-items:center;gap:2px;min-width:0;font-size:13px;font-weight:500}
+.tb-logo{width:18px;height:18px;flex:none;border-radius:50%;margin-right:10px}
+.tb-app{font-weight:600;margin-right:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
+.tb-menu{border:0;background:transparent;padding:5px 9px;border-radius:999px;cursor:pointer;color:var(--muted);text-shadow:inherit}
+.tb-menu:hover,.tb-menu.open{background:var(--hover);color:var(--text)}
+.tb-right{display:flex;align-items:center;gap:4px;flex:none}
+.tb-ic{width:34px;height:34px;display:grid;place-items:center;border:0;padding:0;background:transparent;border-radius:999px;color:inherit;cursor:pointer}
+button.tb-ic:hover{background:var(--hover)}
+span.tb-ic{cursor:default}
+.tb-ram{height:32px;display:flex;align-items:center;gap:6px;padding:0 12px;border-radius:999px;font-size:12px;font-weight:500;
+  background:var(--b-bg);border:var(--b-border);box-shadow:var(--b-shadow)}
+[data-style="glassmorphic"] .tb-logo{background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 5%,#fff),color-mix(in srgb,var(--accent) 22%,#fff));box-shadow:0 0 10px rgba(255,255,255,.6)}
+[data-style="neumorphic"] .topbar{padding:0 7px 0 18px}
+[data-style="neumorphic"] .tb-logo{background:var(--accent);box-shadow:var(--raised-sm)}
+[data-style="neumorphic"] .tb-ram{box-shadow:var(--inset)}
+[data-style="brutalist"] .topbar{padding:0;align-items:stretch;gap:0}
+[data-style="brutalist"] .tb-left{align-items:stretch;gap:0;font-weight:700;text-transform:uppercase}
+[data-style="brutalist"] .tb-logo{width:44px;height:auto;margin:0;border-radius:0;background:var(--accent);border-right:3px solid #000;display:grid;place-items:center}
+[data-style="brutalist"] .tb-logo::after{content:"";width:14px;height:14px;background:#000}
+[data-style="brutalist"] .tb-app{display:flex;align-items:center;margin:0;padding:0 14px;border-right:3px solid #000;font:400 13px var(--display);letter-spacing:.02em;max-width:none}
+[data-style="brutalist"] .tb-menu{border-radius:0;padding:0 12px;color:#000;text-transform:uppercase;font-weight:700}
+[data-style="brutalist"] .tb-menu:hover,[data-style="brutalist"] .tb-menu.open{background:var(--accent);color:var(--accent-ink)}
+[data-style="brutalist"] .tb-right{align-items:stretch;gap:0}
+[data-style="brutalist"] .tb-ic{width:44px;height:auto;border-radius:0;border-left:3px solid #000}
+[data-style="brutalist"] button.tb-ic:hover{background:var(--accent)}
+[data-style="brutalist"] .tb-ram{height:auto;border:0;border-left:3px solid #000;border-radius:0;box-shadow:none;background:#000;color:#fff;font-weight:700;font-size:13px}
+[data-style="brutalist"] .tb-ram svg{display:none}
+[data-style="brutalist"] .tb-ram::before{content:"RAM"}
+[data-style="sleek"] .topbar{padding:0 6px 0 16px}
+[data-style="sleek"] .tb-logo{width:14px;height:14px;border-radius:4px;background:var(--accent)}
+[data-style="sleek"] .tb-menu,[data-style="sleek"] .tb-ic{border-radius:8px}
+[data-style="sleek"] .tb-ic{width:32px;height:32px;color:#c9ccd2}
+[data-style="sleek"] .tb-ram{height:30px;border-radius:8px;padding:0 10px;font-family:var(--mono);color:#c9ccd2}
+.tb-ram{font-variant-numeric:tabular-nums}
+#tb-net.open{background:var(--hover)}
+[data-style="brutalist"] #tb-net.open{background:var(--accent)}
+
+/* The wifi icon's popover: the round trip to the server, and its memory. */
+.net-pop{min-width:240px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;cursor:default}
+.np-head{display:flex;align-items:center;gap:8px;font-weight:600}
+.np-dot{width:8px;height:8px;flex:none;border-radius:50%;background:var(--faint)}
+.np-dot.good{background:#3fb950}.np-dot.ok{background:#d29922}.np-dot.bad{background:#e5484d}
+[data-style="brutalist"] .np-dot{border-radius:0}
+.np-ping{font-size:30px;line-height:1.1;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.np-ping small{font-size:13px;letter-spacing:0;color:var(--muted);margin-left:4px}
+[data-style="brutalist"] .np-ping{font:400 34px/1 var(--display)}
+.np-row{display:flex;justify-content:space-between;gap:16px;font-size:12px;color:var(--muted)}
+.np-row b{font-weight:500;color:var(--text);font-variant-numeric:tabular-nums}
+.np-bar{height:6px;border-radius:99px;overflow:hidden;background:color-mix(in srgb,currentColor 14%,transparent)}
+.np-bar i{display:block;height:100%;background:var(--accent)}
+[data-style="brutalist"] .np-bar{border-radius:0;border:2px solid #000;height:10px}
+
+/* ================================================================ clock */
+.clock{position:absolute;right:16px;top:16px;z-index:1;width:252px;padding:6px}
+.ck-in{display:flex;flex-direction:column;gap:10px;padding:14px 16px}
+.ck-head{display:flex;align-items:center;justify-content:space-between}
+.ck-day{font-size:13px;font-weight:600}
+.ck-ampm{height:22px;display:flex;align-items:center;gap:6px;padding:0 9px;border-radius:999px;font-size:11px;font-weight:500;
+  background:var(--b-bg);border:var(--b-border);box-shadow:var(--b-shadow)}
+.ck-time{font-size:50px;line-height:1;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+.ck-rule{display:none}
+.ck-date{font-size:12px;color:var(--muted)}
+[data-style="glassmorphic"] .ck-in{border-radius:20px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.35);box-shadow:inset 0 0 12px rgba(255,255,255,.12)}
+[data-style="neumorphic"] .clock{padding:8px}
+[data-style="neumorphic"] .ck-in{border-radius:20px;box-shadow:var(--inset)}
+[data-style="neumorphic"] .ck-ampm{color:var(--deep);font-weight:600}
+[data-style="brutalist"] .clock{padding:0}
+[data-style="brutalist"] .ck-in{padding:0;gap:0}
+[data-style="brutalist"] .ck-head{height:34px;padding:0 12px;background:#000;color:#fff;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+[data-style="brutalist"] .ck-day{font-weight:700}
+[data-style="brutalist"] .ck-ampm{height:auto;padding:2px 6px;border:0;border-radius:0;box-shadow:none;background:var(--accent);color:var(--accent-ink);font-size:13px;font-weight:700}
+[data-style="brutalist"] .ck-time{padding:12px 12px 6px;font:400 68px/.9 var(--display)}
+[data-style="brutalist"] .ck-date{margin-top:6px;padding:8px 12px;border-top:3px solid #000;color:#000;font-size:13px;font-weight:500}
+[data-style="sleek"] .clock{padding:16px 18px}
+[data-style="sleek"] .ck-in{padding:0;gap:12px}
+[data-style="sleek"] .ck-day{font-size:12px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+[data-style="sleek"] .ck-ampm{height:auto;padding:0;border:0;background:none;box-shadow:none;font:500 11px var(--mono);color:var(--muted)}
+[data-style="sleek"] .ck-ampm::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent)}
+[data-style="sleek"] .ck-time{font-size:54px;font-weight:300;letter-spacing:-.05em}
+[data-style="sleek"] .ck-rule{display:block;height:1px;background:rgba(255,255,255,.08)}
+[data-style="sleek"] .ck-date{font:400 12px var(--mono)}
+
+/* ================================================================ desktop icons */
+/* Icons sit where they were put (renderDesktop); the grid is 96 x 108. */
+#icons{position:absolute;left:16px;right:16px;top:calc(var(--bar-h) + 30px);bottom:calc(var(--dock-h) + 36px);z-index:2}
+.d-icon{position:absolute;width:84px;display:flex;flex-direction:column;align-items:center;gap:6px;padding:4px 0;border-radius:12px;cursor:default;
+  font-size:12px;font-weight:500;color:var(--text);text-shadow:var(--shade);outline-offset:0}
+.d-icon .tile{width:58px;height:58px;display:grid;place-items:center;border-radius:18px;color:var(--text);
+  background:var(--p-bg);border:var(--p-border);box-shadow:var(--tile-shadow,var(--p-shadow));-webkit-backdrop-filter:var(--p-filter);backdrop-filter:var(--p-filter)}
+.d-icon .lbl{max-width:84px;padding:1px 5px;border-radius:5px;text-align:center;word-break:break-word;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.d-icon.sel .lbl{background:var(--accent);color:var(--accent-ink);text-shadow:none}
+.d-icon.drop .tile{outline:2px dashed var(--accent);outline-offset:3px}
+.d-icon.moving{opacity:.4}
+.d-spot{position:absolute;width:84px;height:100px;border-radius:14px;pointer-events:none;
+  border:2px dashed color-mix(in srgb,var(--text) 55%,transparent);background:color-mix(in srgb,var(--text) 8%,transparent)}
+[data-wp] .d-spot{border-color:rgba(255,255,255,.75);background:rgba(255,255,255,.12)}
+[data-style="brutalist"] .d-spot{border-radius:0;border:3px dashed #000}
+[data-style="glassmorphic"] .d-icon{--tile-shadow:inset 0 0 14px rgba(255,255,255,.2),inset 0 1px 0 rgba(255,255,255,.45),0 10px 24px rgba(0,0,0,.2);text-shadow:0 1px 3px rgba(0,0,0,.45)}
+[data-style="glassmorphic"][data-tone="light"] .d-icon{text-shadow:none}
+[data-style="glassmorphic"] .d-icon.sel .lbl{background:rgba(255,255,255,.9);color:#16210f}
+[data-style="neumorphic"] .d-icon{gap:8px}
+[data-style="brutalist"] .d-icon{align-items:flex-start;gap:0;font-size:11px;font-weight:700;text-transform:uppercase;border-radius:0}
+[data-style="brutalist"] .d-icon .tile{width:60px;height:56px;border-radius:0;--tile-shadow:4px 4px 0 #000}
+[data-style="brutalist"] .d-icon .lbl{margin-top:8px;border-radius:0;background:#000;color:#fff;text-align:left;padding:1px 4px}
+[data-style="brutalist"] .d-icon.sel .lbl{background:var(--accent);color:var(--accent-ink)}
+[data-style="sleek"] .d-icon .tile{width:54px;height:54px;border-radius:var(--p-radius);background:linear-gradient(180deg,#1a1b20 0%,#131417 100%);
+  border-color:rgba(255,255,255,.09);--tile-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 8px 20px rgba(0,0,0,.45)}
+[data-style="sleek"] .d-icon .lbl{color:#c9ccd2}
+[data-style="sleek"] .d-icon.sel .lbl{color:var(--accent-ink)}
+
+/* ================================================================ dock */
+.dock{position:absolute;left:16px;bottom:16px;z-index:20;min-width:min(560px,calc(100% - 32px));max-width:calc(100% - 32px);height:var(--dock-h);
+  display:flex;align-items:center;gap:8px;padding:0 10px}
+/* Installed apps can make the row longer than the screen; it scrolls then. */
+#dock-apps{display:flex;align-items:center;align-self:stretch;gap:inherit;min-width:0;overflow-x:auto;scrollbar-width:none;padding-inline:6px;margin-inline:-6px}
+[data-style="brutalist"] #dock-apps{align-items:stretch;padding-inline:0;margin-inline:0}
+#dock-apps::-webkit-scrollbar{display:none}
+.ic{flex:none}
+img.ic{object-fit:contain;border-radius:22%}
+.start{flex:none;height:60px;width:92px;display:flex;align-items:center;justify-content:center;gap:8px;border:0;cursor:pointer;
+  border-radius:20px;font-size:14px;font-weight:600;padding:0}
+.dk-sep{display:none}
+.dk{position:relative;flex:none;width:52px;height:60px;display:grid;place-items:center;padding:0;cursor:pointer;border-radius:18px;color:var(--text);
+  border:1px solid transparent;background:transparent}
+.dk-dot{position:absolute;left:50%;bottom:6px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:currentColor;display:none}
+.dk.open .dk-dot{display:block}
+.search{flex:none;width:44px;height:44px;display:flex;align-items:center;justify-content:center;gap:8px;padding:0;cursor:pointer;border-radius:999px;
+  color:var(--text);background:var(--b-bg);border:var(--b-border);box-shadow:var(--b-shadow);text-shadow:inherit}
+.search .s-lbl,.search kbd,.search .s-caret{display:none}
+[data-style="glassmorphic"] .start{border:1.5px solid rgba(255,255,255,.85);text-shadow:none;color:color-mix(in srgb,var(--accent) 55%,#000);
+  background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 4%,rgba(255,255,255,.95)) 0%,color-mix(in srgb,var(--accent) 22%,rgba(255,255,255,.84)) 100%);
+  box-shadow:inset 0 0 20px rgba(255,255,255,.75),0 10px 28px rgba(255,255,255,.2)}
+[data-style="glassmorphic"] .dk{border-color:rgba(255,255,255,.4);background:rgba(255,255,255,.07);box-shadow:inset 0 0 12px rgba(255,255,255,.14)}
+[data-style="glassmorphic"] .dk:hover,[data-style="glassmorphic"] .search:hover{background:rgba(255,255,255,.17)}
+[data-style="neumorphic"] .dock{gap:12px;padding:0 12px}
+[data-style="neumorphic"] .start{height:56px;border-radius:18px;background:var(--accent);color:var(--accent-ink);box-shadow:var(--raised-sm)}
+[data-style="neumorphic"] .start.on{box-shadow:inset 3px 3px 6px color-mix(in srgb,var(--accent) 60%,#000),inset -3px -3px 6px color-mix(in srgb,var(--accent) 70%,#fff)}
+[data-style="neumorphic"] .dk{height:56px;background:var(--base);box-shadow:var(--raised-sm)}
+[data-style="neumorphic"] .dk.open{box-shadow:var(--inset);color:var(--deep)}
+[data-style="neumorphic"] .dk-dot{background:var(--accent)}
+[data-style="neumorphic"] .search:active{box-shadow:var(--inset)}
+[data-style="brutalist"] .dock{padding:0;gap:0;align-items:stretch}
+[data-style="brutalist"] .start{height:auto;width:auto;padding:0 18px;gap:10px;border-radius:0;border-right:3px solid #000;background:var(--accent);color:var(--accent-ink);
+  font:400 18px var(--display);text-transform:uppercase;letter-spacing:.02em}
+[data-style="brutalist"] .start .ic rect{fill:currentColor}
+[data-style="brutalist"] .start.on{background:#000;color:#fff}
+[data-style="brutalist"] .dk{width:64px;height:auto;border:0;border-right:3px solid #000;border-radius:0;background:#fff;color:#000}
+[data-style="brutalist"] .dk.open{background:#000;color:#fff}
+[data-style="brutalist"] .dk:hover{background:var(--accent);color:var(--accent-ink)}
+[data-style="brutalist"] .dk-dot{display:none!important}
+[data-style="brutalist"] .dock .grow{display:none}
+[data-style="brutalist"] .search{flex:1;width:auto;height:auto;justify-content:flex-start;gap:10px;padding:0 14px;border:0;border-radius:0;box-shadow:none;
+  font-weight:700;font-size:14px;text-transform:uppercase;min-width:0}
+[data-style="brutalist"] .search:hover{background:var(--hover)}
+[data-style="brutalist"] .search .s-lbl{display:inline}
+[data-style="brutalist"] .search .s-caret{display:inline-block;width:10px;height:18px;background:#000;animation:blink 1.1s steps(1) infinite}
+[data-style="sleek"] .dock{gap:6px}
+[data-style="sleek"] .start{height:46px;width:auto;padding:0 16px;border-radius:10px;background:var(--accent);color:var(--accent-ink);font-size:13px}
+[data-style="sleek"] .dk-sep{display:block;width:1px;height:28px;margin:0 6px;background:rgba(255,255,255,.1);flex:none}
+[data-style="sleek"] .dk{width:46px;height:46px;border-radius:10px;color:var(--muted)}
+[data-style="sleek"] .dk:hover{background:rgba(255,255,255,.04);color:var(--text)}
+[data-style="sleek"] .dk.open{background:rgba(255,255,255,.06);color:var(--text)}
+[data-style="sleek"] .dk-dot{bottom:3px;width:14px;height:2px;margin-left:-7px;border-radius:2px;background:var(--accent)}
+[data-style="sleek"] .search{width:150px;height:40px;justify-content:flex-start;padding:0 8px 0 12px;border-radius:10px;background:rgba(0,0,0,.3);color:var(--muted);min-width:0;flex-shrink:1}
+[data-style="sleek"] .search .s-lbl{display:block;flex:1;text-align:left}
+[data-style="sleek"] .search kbd{display:block;padding:3px 6px;border:1px solid rgba(255,255,255,.1);border-radius:5px;color:var(--muted)}
+@keyframes blink{50%{opacity:0}}
+
+/* ================================================================ windows */
+#windows{position:absolute;inset:0;z-index:5;pointer-events:none;isolation:isolate}
+.win{position:absolute;display:flex;flex-direction:column;pointer-events:auto;padding:6px;min-width:0;
+  transition:opacity .14s ease,transform .14s ease}
+.win.min{opacity:0;transform:translateY(28px) scale(.96);visibility:hidden;pointer-events:none;transition:opacity .14s,transform .14s,visibility 0s .14s}
+.win-bar{flex:none;height:38px;display:flex;align-items:center;gap:10px;padding:0 2px 0 10px;cursor:default;touch-action:none}
+.win-title{flex:1;min-width:0;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.win:not(.focused) .win-title,.win:not(.focused) .win-ic{opacity:.62}
+.win-btns{display:flex;gap:2px;flex:none}
+.wbtn{width:30px;height:30px;display:grid;place-items:center;padding:0;border:0;border-radius:999px;background:transparent;color:inherit;cursor:pointer}
+.wbtn:hover{background:var(--hover)}
+.wbtn.close:hover{background:#e5484d;color:#fff}
+.win-body{flex:1;min-height:0;position:relative;display:flex;flex-direction:column;overflow:hidden;border-radius:var(--w-radius)}
+.rz{position:absolute;z-index:2;touch-action:none}
+.rz.e{top:14px;right:-5px;bottom:14px;width:10px;cursor:ew-resize}
+.rz.s{left:14px;right:14px;bottom:-5px;height:10px;cursor:ns-resize}
+.rz.se{right:-5px;bottom:-5px;width:20px;height:20px;cursor:nwse-resize}
+.win.max .rz{display:none}
+body.dragging iframe{pointer-events:none}
+body.drag-move,body.drag-move *{cursor:default!important}
+body.drag-e,body.drag-e *{cursor:ew-resize!important}
+body.drag-s,body.drag-s *{cursor:ns-resize!important}
+body.drag-se,body.drag-se *{cursor:nwse-resize!important}
+body.dragging{user-select:none}
+[data-style="glassmorphic"] .win-body{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.3);box-shadow:inset 0 0 12px rgba(255,255,255,.1);border-radius:20px}
+[data-style="neumorphic"] .win{padding:8px}
+[data-style="neumorphic"] .win-body{border-radius:18px}
+[data-style="brutalist"] .win{padding:0}
+[data-style="brutalist"] .win-bar{height:36px;padding:0 0 0 10px;gap:8px;background:#000;color:#fff;border-bottom:3px solid #000;text-transform:uppercase}
+[data-style="brutalist"] .win-title{font-size:12px;font-weight:700}
+[data-style="brutalist"] .win.focused .win-bar{background:var(--accent);color:var(--accent-ink)}
+[data-style="brutalist"] .win-btns{gap:0;align-self:stretch}
+[data-style="brutalist"] .wbtn{width:36px;height:auto;border-radius:0;border-left:3px solid #000;background:#fff;color:#000}
+[data-style="brutalist"] .wbtn:hover{background:var(--accent);color:var(--accent-ink)}
+[data-style="brutalist"] .wbtn.close:hover{background:#ff4d2e;color:#000}
+[data-style="sleek"] .win{padding:0}
+[data-style="sleek"] .win-bar{height:40px;padding:0 6px 0 14px;border-bottom:1px solid rgba(255,255,255,.07)}
+[data-style="sleek"] .win.focused .win-ic{color:var(--accent)}
+[data-style="sleek"] .wbtn{border-radius:8px}
+[data-style="sleek"] .win-body{border-radius:0 0 var(--p-radius) var(--p-radius)}
+/* Full screen: the window takes the whole screen, over the bar and the dock. */
+body.fullwin #windows{z-index:35}
+.win.full{left:0!important;top:0!important;width:100%!important;height:100%!important;padding:0;border:0;border-radius:0;box-shadow:none;transition:none}
+.win.full .win-bar,.win.full .rz{display:none}
+.win.full .win-body{border:0;border-radius:0;box-shadow:none}
+/* In full screen, or with the front window maximized, the bars wait off
+   screen and slide in over everything when
+   the pointer reaches their edge (the .fs-edge strips). */
+.win.max{border-radius:0}
+.fs-edge{position:absolute;left:0;right:0;height:6px;z-index:41;display:none}
+.fs-edge.top{top:0}.fs-edge.bottom{bottom:0}
+body.hidebars .fs-edge{display:block}
+body.hidebars .topbar{z-index:42;transform:translateY(calc(-100% - 48px));transition:transform .2s ease}
+body.hidebars .dock{z-index:42;transform:translateY(calc(100% + 48px));transition:transform .2s ease}
+body.hidebars.show-top .topbar,body.hidebars.show-bottom .dock{transform:none}
+body.hidebars .start-menu{z-index:43}
+body.hidebars .menu{z-index:44}
+
+/* ================================================================ wallpaper */
+.wp-img{inset:0;background:center/cover no-repeat}
+[data-wp] .wp > *{display:none}
+[data-wp] .wp > .wp-img{display:block}
+[data-wp] .d-icon:not(.sel) .lbl{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.75)}
+[data-wp][data-style="brutalist"] .d-icon .lbl{text-shadow:none}
+
+/* ================================================================ menus, start, dialogs, toasts */
+.menu{position:absolute;z-index:40;min-width:210px;max-width:300px;padding:6px;border-radius:var(--m-radius);animation:pop .12s ease-out}
+.menu-item{display:flex;align-items:center;gap:10px;width:100%;height:32px;padding:0 10px;border:0;background:transparent;cursor:pointer;text-align:left;
+  font-size:13px;color:var(--text);border-radius:max(0px,calc(var(--m-radius) - 8px));text-shadow:inherit}
+.menu-item:hover:not(:disabled),.menu-item:focus-visible{background:var(--sel);outline:none}
+.menu-item:disabled{opacity:.42;cursor:default}
+.menu-item kbd{margin-left:auto;color:var(--muted)}
+.menu-item .ic-pad{width:16px;flex:none}
+.menu-sep{height:1px;margin:5px 8px;background:currentColor;opacity:.14}
+[data-style="brutalist"] .menu-item{text-transform:uppercase;font-size:12px;font-weight:700}
+[data-style="brutalist"] .menu-item:hover:not(:disabled),[data-style="brutalist"] .menu-item:focus-visible{color:var(--accent-ink)}
+[data-style="brutalist"] .menu-sep{height:3px;margin:5px 0;opacity:1}
+
+.start-menu{position:absolute;left:16px;bottom:calc(var(--dock-h) + 28px);z-index:30;width:min(380px,calc(100% - 32px));
+  max-height:calc(100% - var(--dock-h) - var(--bar-h) - 72px);display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:var(--p-radius);animation:pop .14s ease-out}
+.sm-search{position:relative;flex:none}
+.sm-search .ic{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted)}
+.sm-search .inp{height:40px;padding-left:38px}
+.sm-sec{font-size:11px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:2px 4px 0}
+.sm-apps{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;flex:none}
+.sm-app{display:flex;flex-direction:column;align-items:center;gap:7px;padding:10px 2px;border:0;background:transparent;cursor:pointer;font-size:12px;
+  color:var(--text);text-shadow:inherit;border-radius:max(0px,calc(var(--m-radius) - 4px))}
+.sm-app:hover,.sm-app.hot{background:var(--hover)}
+.sm-app .tile{width:42px;height:42px;display:grid;place-items:center;border-radius:14px;background:var(--b-bg);border:var(--b-border);box-shadow:var(--b-shadow)}
+[data-style="brutalist"] .sm-app .tile{border-radius:0}
+.sm-list{display:flex;flex-direction:column;gap:2px;overflow:auto;min-height:0}
+.sm-row{display:flex;align-items:center;gap:10px;min-height:38px;padding:4px 10px;border:0;background:transparent;cursor:pointer;text-align:left;
+  color:var(--text);text-shadow:inherit;border-radius:max(0px,calc(var(--m-radius) - 6px))}
+.sm-row:hover,.sm-row.hot{background:var(--sel)}
+[data-style="brutalist"] .sm-row:hover,[data-style="brutalist"] .sm-row.hot{color:var(--accent-ink)}
+.sm-row .ic{color:var(--ic)}
+.sm-row.hot .ic,[data-style="brutalist"] .sm-row:hover .ic{color:inherit}
+.sm-txt{min-width:0;display:flex;flex-direction:column}
+.sm-name{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sm-path{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sm-none{padding:10px;color:var(--muted);font-size:12.5px}
+.sm-foot{display:flex;justify-content:space-between;gap:10px;padding:8px 4px 0;font-size:11.5px;color:var(--muted);border-top:1px solid color-mix(in srgb,currentColor 12%,transparent)}
+.start.on,.search.on{filter:brightness(.94)}
+
+.scrim{position:absolute;inset:0;z-index:50;display:grid;place-items:center;padding:16px;background:rgba(0,0,0,.28)}
+.dialog{width:min(420px,100%);padding:20px;border-radius:var(--m-radius);animation:pop .14s ease-out}
+.dialog h2{margin:0 0 6px;font-size:15px;font-weight:650;overflow-wrap:anywhere}
+.dialog p{margin:0 0 14px;color:var(--muted);line-height:1.5}
+[data-style="brutalist"] .dialog h2{font:400 17px var(--display);text-transform:uppercase}
+.dlg-err{color:#e5484d;font-size:12px;margin-top:6px;min-height:1px}
+[data-style="glassmorphic"]:not([data-tone="light"]) .dlg-err{color:#ffc9c9}
+.dlg-btns{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.picker{width:min(520px,100%)}
+.picker .f-crumbs{margin:2px 0 8px;padding:0}
+.pk-list{height:260px;overflow:auto;padding:6px}
+.pk-row{display:flex;align-items:center;gap:10px;height:34px;padding:0 10px;cursor:default;border-radius:max(0px,calc(var(--w-radius) - 8px))}
+.pk-row:hover{background:var(--hover)}
+.pk-row.sel{background:var(--sel)}
+[data-style="brutalist"] .pk-row.sel{color:var(--accent-ink)}
+.pk-row .ic{color:var(--ic)}
+.pk-row.sel .ic{color:inherit}
+.pk-row.dim{opacity:.5}
+.pk-name{display:flex;align-items:center;gap:10px;margin-top:12px;font-weight:500}
+.pk-name .inp{flex:1}
+
+#toasts{position:absolute;right:16px;bottom:calc(var(--dock-h) + 28px);z-index:60;display:flex;flex-direction:column;align-items:flex-end;gap:8px;pointer-events:none}
+.toast{max-width:min(380px,calc(100vw - 32px));padding:10px 14px;font-size:13px;line-height:1.45;border-radius:var(--m-radius);animation:rise .18s ease-out}
+@keyframes pop{from{opacity:0;transform:translateY(4px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ================================================================ Files */
+.files{display:flex;flex:1;min-height:0;container-type:inline-size}
+.f-side{width:168px;flex:none;display:flex;flex-direction:column;gap:2px;padding:10px 8px}
+.f-sec{font-size:11px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:2px 10px 6px}
+.f-place{display:flex;align-items:center;gap:10px;height:34px;padding:0 10px;border:0;background:transparent;cursor:pointer;text-align:left;color:var(--text);text-shadow:inherit;
+  border-radius:max(0px,calc(var(--w-radius) - 6px))}
+.f-place:hover{background:var(--hover)}
+.f-place.on{background:var(--sel)}
+.f-place.drop{outline:2px dashed var(--accent);outline-offset:-2px}
+[data-style="brutalist"] .f-place{text-transform:uppercase;font-weight:700;font-size:12px}
+[data-style="brutalist"] .f-place.on{color:var(--accent-ink)}
+.f-usage{font-size:11.5px;color:var(--muted);padding:8px 10px 2px}
+.f-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;padding:10px 10px 0 0}
+.f-tool{display:flex;align-items:center;gap:6px}
+.f-crumbs{flex:1;min-width:0;display:flex;align-items:center;gap:1px;height:32px;padding:0 4px;overflow:hidden;white-space:nowrap}
+.crumb{border:0;background:transparent;padding:4px 7px;border-radius:7px;cursor:pointer;font-weight:550;color:var(--text);text-shadow:inherit;flex:none;max-width:180px;overflow:hidden;text-overflow:ellipsis}
+.crumb:hover{background:var(--hover)}
+.crumb.drop{outline:2px dashed var(--accent)}
+.crumb-sep{color:var(--faint);flex:none}
+.f-grid{flex:1;min-height:0;overflow:auto;padding:10px;outline:none;display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));align-content:start;gap:4px}
+.f-grid.drop{outline:2px dashed var(--accent);outline-offset:-4px}
+.f-item{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 4px 8px;cursor:default;font-size:12px;text-align:center;
+  border-radius:max(0px,calc(var(--w-radius) - 6px))}
+.f-item:hover{background:var(--hover)}
+.f-item.sel{background:var(--sel)}
+[data-style="brutalist"] .f-item.sel{color:var(--accent-ink)}
+.f-item.drop{outline:2px dashed var(--accent);outline-offset:-2px}
+.f-ic{color:var(--ic)}
+.f-item.sel .f-ic{color:inherit}
+.f-nm{max-width:100%;word-break:break-word;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.f-empty{grid-column:1/-1;padding:44px 12px;text-align:center;color:var(--muted);line-height:1.6}
+.f-status{flex:none;height:30px;display:flex;align-items:center;gap:6px;padding:0 4px;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden}
+.f-status span:last-child{overflow:hidden;text-overflow:ellipsis}
+@container (max-width:520px){.f-side{display:none}.f-main{padding-left:10px}}
+
+/* ================================================================ Text Editor */
+.ed{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px;padding:10px 10px 0}
+.ed-tool{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ed-text{flex:1;min-height:0;width:100%;resize:none;margin:0;padding:12px 14px;outline:none;user-select:text;text-shadow:none;color:var(--text);
+  font:13px/1.6 var(--mono);tab-size:4;white-space:pre-wrap;overflow-wrap:anywhere}
+.ed-text.nowrap{white-space:pre;overflow-wrap:normal;overflow-x:auto}
+.ed-text:focus{outline:2px solid color-mix(in srgb,var(--accent) 55%,transparent);outline-offset:-1px}
+.ed-status{flex:none;height:30px;display:flex;align-items:center;gap:16px;padding:0 4px;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden}
+.ed-path{min-width:0;overflow:hidden;text-overflow:ellipsis;font-family:var(--mono)}
+@container (max-width:460px){.ed-tool .btn span{display:none}}
+.ed{container-type:inline-size}
+
+/* ================================================================ Browser */
+.br-frame{flex:1;display:block;width:100%;min-height:0;border:0;background:#0b0e14}
+.br-empty{margin:auto;max-width:360px;padding:24px;text-align:center;color:var(--muted);line-height:1.55}
+.br-empty strong{display:block;margin-bottom:6px;color:var(--text);font-size:14px}
+
+/* ================================================================ Terminal */
+.tm{flex:1;min-height:0;display:flex;flex-direction:column}
+.tm-login{flex:1;min-height:0;overflow:auto;display:grid;place-items:center;padding:20px}
+.tm-card{width:min(340px,100%);display:flex;flex-direction:column;gap:10px}
+.tm-card h3{margin:4px 0 0;font-size:15px;font-weight:650;overflow-wrap:anywhere}
+[data-style="brutalist"] .tm-card h3{font:400 17px var(--display);text-transform:uppercase}
+.tm-card p{margin:0;color:var(--muted);line-height:1.5}
+.tm-card .dlg-err{margin:0}
+.tm-card .btn{align-self:flex-end}
+.tm-lock{width:44px;height:44px;display:grid;place-items:center;border-radius:14px;color:var(--ic);background:var(--b-bg);border:var(--b-border);box-shadow:var(--b-shadow)}
+[data-style="brutalist"] .tm-lock{border-radius:0}
+.tm-screen{flex:1;min-height:0;overflow:auto;margin:10px 10px 0;padding:10px 12px;cursor:text;user-select:text;text-shadow:none;color:var(--text);
+  font:13px/1.5 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere}
+.tm-out{margin:0;font:inherit;white-space:inherit}
+.tm-note{color:var(--muted);font-style:italic}
+.tm-cur{display:flex;align-items:baseline}
+.tm-tail{flex:none;max-width:100%;white-space:pre-wrap}
+.tm-in{flex:1;min-width:48px;height:auto;margin:0;padding:0;border:0;outline:none;background:transparent;font:inherit;color:inherit;user-select:text}
+.tm-ended{padding-top:8px;user-select:none}
+.tm-status{flex:none;height:30px;display:flex;align-items:center;gap:8px;padding:0 14px;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden}
+.tm-status span:last-child{overflow:hidden;text-overflow:ellipsis}
+.tm-dot{width:7px;height:7px;flex:none;border-radius:50%;background:var(--faint)}
+.tm-dot.on{background:#3fb950}
+[data-style="brutalist"] .tm-dot{border-radius:0}
+
+/* ================================================================ Settings */
+.set{flex:1;min-height:0;overflow:auto;padding:18px 20px 22px;display:flex;flex-direction:column;gap:24px;container-type:inline-size}
+.set h3{margin:0 0 10px;font-size:14px;font-weight:650}
+[data-style="brutalist"] .set h3{font:400 16px var(--display);text-transform:uppercase}
+.set p{margin:0 0 10px;color:var(--muted);line-height:1.55}
+.set-lbl{font-size:12px;font-weight:600;margin:14px 0 8px}
+.set-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.os-styles{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@container (max-width:520px){.os-styles{grid-template-columns:repeat(2,1fr)}}
+.os-style{display:flex;flex-direction:column;gap:8px;padding:7px 7px 9px;cursor:pointer;text-align:left;color:var(--text);text-shadow:inherit;
+  background:var(--b-bg);border:var(--b-border);box-shadow:var(--b-shadow);border-radius:min(var(--p-radius),14px)}
+.os-style:hover{background:var(--hover)}
+.os-style.active{outline:2px solid var(--accent);outline-offset:2px}
+[data-style="glassmorphic"] .os-style.active{outline-color:#fff}
+.os-style .nm{font-size:12px;font-weight:550;padding:0 2px}
+.os-thumb{--a:#888;position:relative;display:block;aspect-ratio:4/3;border-radius:6px;overflow:hidden}
+.os-thumb i,.os-thumb b{position:absolute;display:block}
+.os-thumb .t-bar{left:4%;top:5%;width:56%;height:9%}
+.os-thumb .t-clock{right:4%;top:5%;width:30%;height:24%}
+.os-thumb .t-win{left:22%;top:24%;width:52%;height:44%}
+.os-thumb .t-dock{left:4%;bottom:5%;width:56%;height:15%}
+.os-thumb .t-dock b{left:5%;top:18%;width:22%;height:64%;background:var(--a)}
+.os-thumb.glassmorphic{background:radial-gradient(60% 55% at 78% 18%,color-mix(in srgb,var(--a) 55%,#fff),transparent),radial-gradient(55% 60% at 12% 90%,color-mix(in srgb,var(--a) 70%,#000),transparent),var(--a)}
+.os-thumb.glassmorphic i{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.6);border-radius:6px}
+.os-thumb.glassmorphic .t-bar{border-radius:99px}
+.os-thumb.glassmorphic .t-dock b{border-radius:3px;background:color-mix(in srgb,var(--a) 18%,#fff)}
+.os-thumb.neumorphic{--base:color-mix(in srgb,var(--a) 10%,#e3e6e1);background:var(--base)}
+.os-thumb.neumorphic i{background:var(--base);border-radius:6px;box-shadow:2px 2px 4px color-mix(in srgb,var(--base) 78%,#000),-2px -2px 4px #fff}
+.os-thumb.neumorphic .t-bar{border-radius:99px}
+.os-thumb.neumorphic .t-dock b{border-radius:3px}
+.os-thumb.brutalist{background:#efece3}
+.os-thumb.brutalist i{background:#fff;border:2px solid #000;box-shadow:2px 2px 0 #000}
+.os-thumb.brutalist .t-win{border-top-width:6px}
+.os-thumb.brutalist .t-dock b{top:0;left:0;height:100%;border-right:2px solid #000}
+.os-thumb.sleek{background:radial-gradient(45% 50% at 70% 72%,color-mix(in srgb,var(--a) 28%,transparent),transparent),
+  linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px) 0 0/10px 10px,linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px) 0 0/10px 10px,#0a0b0d}
+.os-thumb.sleek i{background:linear-gradient(#18191d,#121316);border:1px solid rgba(255,255,255,.12);border-radius:4px}
+.os-thumb.sleek .t-dock b{border-radius:2px}
+.swatch{position:relative;width:30px;height:30px;flex:none;padding:0;border-radius:50%;cursor:pointer;border:2px solid rgba(255,255,255,.85);box-shadow:0 0 0 1px rgba(0,0,0,.2)}
+.swatch.on{box-shadow:0 0 0 2px var(--text)}
+.swatch.custom{display:grid;place-items:center;overflow:hidden;background:conic-gradient(#f43f5e,#f59e0b,#84cc16,#14b8a6,#3b82f6,#a855f7,#f43f5e)}
+.swatch.custom.on::after{content:"";position:absolute;inset:5px;border-radius:50%;background:var(--accent);border:2px solid #fff;pointer-events:none}
+.swatch.custom input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0}
+[data-style="brutalist"] .swatch{border-radius:0;border:2px solid #000;box-shadow:2px 2px 0 #000}
+[data-style="brutalist"] .swatch.on{outline:3px solid #000;outline-offset:2px}
+[data-style="brutalist"] .swatch.custom.on::after{border-radius:0;border-color:#000}
+.hex{font:500 12px var(--mono);color:var(--muted)}
+.wp-grid-set{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+.wp-tile{position:relative;display:flex;flex-direction:column;gap:6px;padding:6px 6px 8px;cursor:pointer;text-align:left;color:var(--text);text-shadow:inherit;
+  background:var(--b-bg);border:var(--b-border);box-shadow:var(--b-shadow);border-radius:min(var(--p-radius),14px)}
+.wp-tile:hover{background:var(--hover)}
+.wp-tile.active{outline:2px solid var(--accent);outline-offset:2px}
+[data-style="glassmorphic"] .wp-tile.active{outline-color:#fff}
+.wp-thumb{display:grid;place-items:center;aspect-ratio:16/10;border-radius:6px;overflow:hidden;background:center/cover no-repeat var(--desk);color:var(--muted)}
+.wp-thumb.add{background:var(--w-bg);box-shadow:var(--w-shadow)}
+.wp-tile .nm{font-size:12px;font-weight:550;padding:0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wp-del{position:absolute;top:10px;right:10px;width:24px;height:24px;display:grid;place-items:center;padding:0;border:0;border-radius:50%;cursor:pointer;
+  background:rgba(0,0,0,.55);color:#fff;opacity:0;transition:opacity .12s}
+.wp-tile:hover .wp-del,.wp-del:focus-visible{opacity:1}
+.wp-del:hover{background:#e5484d}
+[data-style="brutalist"] .wp-tile,[data-style="brutalist"] .wp-thumb,[data-style="brutalist"] .wp-del{border-radius:0}
+
+@media (max-width:760px){
+  .topbar{width:calc(100% - 32px)}
+  .clock{display:none}
+  .tb-menu{padding:5px 7px}
+}
+@media (max-width:520px){
+  .tb-menu[data-menu="go"],.tb-ram{display:none}
+}
+</style>
+</head>
+<body>
+<div id="desktop">
+  <div class="wp" aria-hidden="true"><div class="wp-img" id="wp-img"></div><div class="wp-grid"></div><div class="wp-glow"></div><div class="wp-type">PLO
+VER</div></div>
+
+  <div id="icons" aria-label="Desktop"></div>
+
+  <div id="clock" class="clock panel" aria-hidden="true">
+    <div class="ck-in">
+      <div class="ck-head"><span class="ck-day"></span><span class="ck-ampm"></span></div>
+      <div class="ck-time"></div>
+      <div class="ck-rule"></div>
+      <div class="ck-date"></div>
+    </div>
+  </div>
+
+  <div id="windows"></div>
+
+  <header id="topbar" class="topbar panel">
+    <nav class="tb-left" aria-label="Menu bar">
+      <span class="tb-logo" aria-hidden="true"></span>
+      <span class="tb-app" id="tb-app">Desktop</span>
+      <button class="tb-menu" data-menu="file" aria-haspopup="menu">File</button>
+      <button class="tb-menu" data-menu="view" aria-haspopup="menu">View</button>
+      <button class="tb-menu" data-menu="go" aria-haspopup="menu">Go</button>
+    </nav>
+    <div class="tb-right">
+      <button class="tb-ic" id="tb-net" aria-haspopup="dialog"></button>
+      <button class="tb-ic" id="tb-full" aria-label="Full screen" title="Full screen"></button>
+      <span class="tb-ram" id="tb-ram" hidden></span>
+    </div>
+  </header>
+
+  <nav id="dock" class="dock panel" aria-label="Dock">
+    <button class="start" id="start-btn" aria-haspopup="dialog"></button>
+    <span class="dk-sep"></span>
+    <span id="dock-apps"></span>
+    <span class="grow"></span>
+    <button class="search" id="search-btn" aria-label="Search apps and files"></button>
+  </nav>
+
+  <div id="start" class="start-menu panel" role="dialog" aria-label="Start" hidden>
+    <div class="sm-search"><span id="sm-ic"></span><input class="inp" id="sm-q" type="text" spellcheck="false" autocomplete="off" placeholder="Search apps and files"></div>
+    <div class="sm-sec" id="sm-apps-lbl">Apps</div>
+    <div class="sm-apps" id="sm-apps"></div>
+    <div class="sm-sec" id="sm-list-lbl">Recent</div>
+    <div class="sm-list" id="sm-list"></div>
+    <div class="sm-foot"><span id="sm-server"></span><span>Plover</span></div>
+  </div>
+
+  <div id="toasts" aria-live="polite"></div>
+</div>
+
+<script>
+(function () {
+"use strict";
+
+// Filled in by Plover Server for each server; left as is, this page previews
+// the desktop without a Browser.
+const CFG_IN = /*__PLOVER_OS__*/null;
+const CLIENT_HTML = "__PLOVER_CLIENT__";
+const BUILT = !/^__PLOVER_/.test(CLIENT_HTML);
+
+// main.js sends its own style table with the config; this one is only for
+// previewing the template.
+const STYLES = (CFG_IN && CFG_IN.styles) || {
+  glassmorphic: { name: "Glassmorphic", accents: ["#3d6b26", "#1f5f8b", "#6b3fa0", "#a34a2a"] },
+  neumorphic: { name: "Neumorphic", accents: ["#4f7a3a", "#3d6b8f", "#a0522d", "#5b4f8f"] },
+  brutalist: { name: "Brutalist", accents: ["#ffe500", "#ff4d2e", "#3d5afe", "#00e676"] },
+  sleek: { name: "Sleek", accents: ["#c6f36b", "#7dd3fc", "#f5f5f5", "#fb923c"] },
+};
+const HEX = /^#[0-9a-f]{6}$/i;
+const CFG = Object.assign({ id: "preview", name: "Plover" }, CFG_IN || {});
+if (!Object.hasOwn(STYLES, CFG.style)) CFG.style = Object.keys(STYLES)[0];
+if (!HEX.test(CFG.accent || "")) CFG.accent = STYLES[CFG.style].accents[0];
+
+// ------------------------------------------------------------------ helpers
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+function html(s) { const t = document.createElement("template"); t.innerHTML = s.trim(); return t.content.firstElementChild; }
+
+const ICONS = {
+  folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  open: '<path d="M3 17V7a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v1"/><path d="M3 17l2.4-5.6A2 2 0 0 1 7.2 10H21l-2.6 7.6a2 2 0 0 1-1.9 1.4H5a2 2 0 0 1-2-2z"/>',
+  file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6"/><path d="M9 17h4"/>',
+  edit: '<path d="M13 4H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/><path d="M17.6 3.6a2 2 0 0 1 2.8 2.8L13 13.8 10 14.5l.7-3z"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18"/><path d="M12 3a14 14 0 0 0 0 18"/>',
+  sliders: '<path d="M4 6h9"/><path d="M17 6h3"/><circle cx="15" cy="6" r="2"/><path d="M4 12h3"/><path d="M11 12h9"/><circle cx="9" cy="12" r="2"/><path d="M4 18h11"/><path d="M19 18h1"/><circle cx="17" cy="18" r="2"/>',
+  grid: '<rect x="4" y="4" width="6" height="6" rx="2"/><rect x="14" y="4" width="6" height="6" rx="2"/><rect x="4" y="14" width="6" height="6" rx="2"/><rect x="14" y="14" width="6" height="6" rx="2"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  wifi: '<path d="M2 9a15 15 0 0 1 20 0"/><path d="M5 12.5a10 10 0 0 1 14 0"/><path d="M8.5 16a5 5 0 0 1 7 0"/><path d="M12 19.5h.01"/>',
+  wifiOff: '<path d="m3 3 18 18"/><path d="M8.5 16a5 5 0 0 1 7 0"/><path d="M12 19.5h.01"/><path d="M5 12.5a10 10 0 0 1 4.8-2.7"/><path d="M2 9a15 15 0 0 1 4-2.6"/><path d="M14.9 10A10 10 0 0 1 19 12.5"/><path d="M10.6 4.1A15 15 0 0 1 22 9"/>',
+  full: '<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>',
+  unfull: '<path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/>',
+  min: '<path d="M5 12h14"/>',
+  max: '<rect x="5" y="5" width="14" height="14" rx="2"/>',
+  restore: '<rect x="4" y="9" width="11" height="11" rx="2"/><path d="M9 9V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/>',
+  x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  back: '<path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>',
+  up: '<path d="M12 19V5"/><path d="m5 12 7-7 7 7"/>',
+  folderPlus: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 10v6"/><path d="M9 13h6"/>',
+  filePlus: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 11v6"/><path d="M9 14h6"/>',
+  upload: '<path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>',
+  download: '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>',
+  trash: '<path d="M4 7h16"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="m6 7 1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4h6v3"/>',
+  rename: '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M14 8l2 2"/>',
+  home: '<path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/>',
+  monitor: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8"/><path d="M12 16v4"/>',
+  doc: '<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/>',
+  save: '<path d="M5 3h11l4 4v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 1-2z"/><path d="M8 3v5h7V3"/><path d="M8 21v-7h8v7"/>',
+  terminal: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3"/><path d="M13 15h4"/>',
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  ram: '<rect x="2" y="7" width="20" height="10" rx="2"/><path d="M6 17v3"/><path d="M10 17v3"/><path d="M14 17v3"/><path d="M18 17v3"/><path d="M6 11v2"/><path d="M10 11v2"/><path d="M14 11v2"/><path d="M18 11v2"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5L5 20"/>',
+  app: '<rect x="3" y="3" width="18" height="18" rx="4"/><path d="M3 8h18"/><path d="M6 5.5h.01"/><path d="M8.5 5.5h.01"/><path d="m10 13-2 2 2 2"/><path d="m14 13 2 2-2 2"/>',
+};
+// name is a key of ICONS, or an installed app's own icon as a data: URL.
+function ic(name, size = 18, width = 1.75) {
+  if (/^data:image\//.test(name)) return '<img class="ic" width="' + size + '" height="' + size + '" alt="" src="' + esc(name) + '">';
+  return '<svg class="ic" width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="' + width +
+    '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || "") + "</svg>";
+}
+
+function fmtSize(n) {
+  if (n < 1024) return n + " B";
+  if (n < 1048576) return (n / 1024).toFixed(1).replace(/\.0$/, "") + " KB";
+  return (n / 1048576).toFixed(1).replace(/\.0$/, "") + " MB";
+}
+const bytes = (s) => new TextEncoder().encode(s).length;
+const fmtTime = (t) => new Date(t).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+function lum(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const [r, g, b] = [n >> 16, (n >> 8) & 255, n & 255].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+const toastBox = $("#toasts");
+function toast(msg) {
+  const t = html('<div class="toast panel" role="status"></div>');
+  t.textContent = msg;
+  toastBox.append(t);
+  setTimeout(() => t.remove(), 3600);
+}
+
+// ------------------------------------------------------------------ storage
+// One JSON document per server: the file tree, the look, recent files.
+// Nodes: folder {t:"d", m, c:{name: node}}, text file {t:"f", m, s}.
+const KEY = "plover-os:" + CFG.id;
+const PROTECTED = new Set(["/Desktop", "/Documents"]);
+const WELCOME = [
+  "Welcome to Plover.",
+  "",
+  "Browser      The Plover browser. Pages run on the server and stream here.",
+  "Files        Your folders. Drag files in from your computer to import them.",
+  "Text Editor  Plain-text files. Ctrl+S saves, Ctrl+Shift+S saves a copy.",
+  "Terminal     A command prompt on the server, after you sign in with its password.",
+  "Settings     Change the desktop's style, accent color and wallpaper.",
+  "",
+  "Your files are kept in this web browser, on this computer, for this desktop",
+  "only. Download a backup from Settings to move them somewhere else.",
+  "",
+  "Tips",
+  "- Double-click a window's title bar to maximize it.",
+  "- Ctrl+K searches apps and files.",
+  "- Right-click the desktop or a file for more actions.",
+  "- Drag icons anywhere on the desktop. Right-click it to turn grid snap on or off.",
+  "",
+].join("\n");
+
+let storageOk = true;
+const state = (() => {
+  let raw = null;
+  try { raw = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (_) { storageOk = false; }
+  const fs = raw && cleanTree(raw.fs);
+  const s = {
+    v: 1,
+    fs: fs && fs.t === "d" ? fs : freshTree(),
+    prefs: raw && raw.prefs && typeof raw.prefs === "object" ? raw.prefs : {},
+    recent: raw && Array.isArray(raw.recent) ? raw.recent.filter((p) => typeof p === "string") : [],
+    wrap: !(raw && raw.wrap === false),
+    // Desktop icons: where each was put (by icon key, in px), and grid snap.
+    desk: { pos: cleanPos(raw && raw.desk && raw.desk.pos), snap: !(raw && raw.desk && raw.desk.snap === false) },
+  };
+  ensureBase(s.fs);
+  return s;
+})();
+
+function freshTree() {
+  const m = Date.now();
+  return { t: "d", m, c: {
+    Desktop: { t: "d", m, c: { "Welcome.txt": { t: "f", m, s: WELCOME } } },
+    Documents: { t: "d", m, c: {} },
+  } };
+}
+function ensureBase(root) {
+  for (const p of PROTECTED) {
+    const name = p.slice(1);
+    if (!root.c[name] || root.c[name].t !== "d") root.c[name] = { t: "d", m: Date.now(), c: {} };
+  }
+}
+function cleanPos(p) {
+  const out = {};
+  if (!p || typeof p !== "object") return out;
+  for (const [k, v] of Object.entries(p)) {
+    if (k !== "__proto__" && v && Number.isFinite(v.x) && Number.isFinite(v.y)) out[k] = { x: Math.max(0, v.x), y: Math.max(0, v.y) };
+  }
+  return out;
+}
+// Keeps only well-formed nodes, for what comes out of storage or a backup.
+function cleanTree(n) {
+  if (!n || typeof n !== "object") return null;
+  const m = Number.isFinite(n.m) ? n.m : Date.now();
+  if (n.t === "f") return typeof n.s === "string" ? { t: "f", m, s: n.s } : null;
+  if (n.t !== "d" || !n.c || typeof n.c !== "object") return null;
+  const c = {};
+  for (const [k, v] of Object.entries(n.c)) {
+    if (validName(k) || k !== k.trim()) continue;
+    const child = cleanTree(v);
+    if (child) c[k] = child;
+  }
+  return { t: "d", m, c };
+}
+
+let saveTimer = 0, warnedFull = 0;
+function persist() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 250); }
+function saveNow() {
+  clearTimeout(saveTimer);
+  if (!storageOk) return false;
+  try { localStorage.setItem(KEY, JSON.stringify(state)); return true; }
+  catch (e) {
+    if (Date.now() - warnedFull > 30000) {
+      warnedFull = Date.now();
+      toast(/quota/i.test(e.name + e.message) ? "Storage is full, so changes aren't being saved. Delete some files to make room." : "Could not save: " + e.message);
+    }
+    return false;
+  }
+}
+addEventListener("pagehide", saveNow);
+
+// ---------------------------------------------------------------- file tree
+const parts = (p) => p.split("/").filter(Boolean);
+const joinPath = (dir, name) => (dir === "/" ? "" : dir) + "/" + name;
+const dirname = (p) => "/" + parts(p).slice(0, -1).join("/");
+const basename = (p) => parts(p).pop() || "";
+const within = (p, root) => p === root || p.startsWith(root + "/");
+
+function get(p) {
+  let n = state.fs;
+  for (const k of parts(p)) {
+    if (!n || n.t !== "d" || !Object.hasOwn(n.c, k)) return null;
+    n = n.c[k];
+  }
+  return n;
+}
+const isDir = (p) => { const n = get(p); return !!n && n.t === "d"; };
+const isFile = (p) => { const n = get(p); return !!n && n.t === "f"; };
+const exists = (p) => !!get(p);
+
+function validName(name) {
+  if (!name) return "Enter a name.";
+  if (/[\/\\]/.test(name)) return "Names can't contain / or \\.";
+  if (name === "." || name === ".." || name === "__proto__") return "That name is reserved.";
+  if (name.length > 120) return "That name is too long.";
+  return "";
+}
+const nameError = (dir, name, except) => validName(name) || (name !== except && exists(joinPath(dir, name)) ? "Something named “" + name + "” is already there." : "");
+
+function list(dir) {
+  const d = get(dir);
+  if (!d || d.t !== "d") return [];
+  return Object.keys(d.c).map((name) => ({ name, path: joinPath(dir, name), node: d.c[name] }))
+    .sort((a, b) => (a.node.t === b.node.t ? a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }) : a.node.t === "d" ? -1 : 1));
+}
+function walk(dir = "/", out = []) {
+  for (const e of list(dir)) { out.push(e); if (e.node.t === "d") walk(e.path, out); }
+  return out;
+}
+function freeName(dir, name) {
+  const d = get(dir);
+  if (!d || !Object.hasOwn(d.c, name)) return name;
+  const dot = name.lastIndexOf(".");
+  const stem = dot > 0 ? name.slice(0, dot) : name, ext = dot > 0 ? name.slice(dot) : "";
+  for (let i = 2; ; i++) if (!Object.hasOwn(d.c, stem + " " + i + ext)) return stem + " " + i + ext;
+}
+function folder(dir) {
+  const d = get(dir);
+  if (!d || d.t !== "d") throw new Error("That folder no longer exists.");
+  return d;
+}
+
+const fsWatchers = new Set();
+function changed() { persist(); for (const f of [...fsWatchers]) f(); }
+
+function writeFile(path, text) {
+  const d = folder(dirname(path)), name = basename(path);
+  if (d.c[name] && d.c[name].t === "d") throw new Error("There's a folder named “" + name + "” there.");
+  d.c[name] = { t: "f", m: Date.now(), s: text };
+  d.m = Date.now();
+  changed();
+}
+function makeDir(dir, name) {
+  const d = folder(dir), err = nameError(dir, name);
+  if (err) throw new Error(err);
+  d.c[name] = { t: "d", m: Date.now(), c: {} };
+  changed();
+  return joinPath(dir, name);
+}
+function renamePath(path, name) {
+  if (PROTECTED.has(path)) throw new Error(basename(path) + " can't be renamed.");
+  const dir = dirname(path), d = folder(dir), old = basename(path);
+  if (name === old) return path;
+  const err = nameError(dir, name);
+  if (err) throw new Error(err);
+  d.c[name] = d.c[old]; delete d.c[old];
+  const to = joinPath(dir, name);
+  moved(path, to); changed();
+  return to;
+}
+function movePath(path, destDir) {
+  if (PROTECTED.has(path)) throw new Error(basename(path) + " can't be moved.");
+  if (dirname(path) === destDir) return path;
+  if (within(destDir, path)) throw new Error("A folder can't go inside itself.");
+  const src = folder(dirname(path)), dst = folder(destDir), name = basename(path);
+  if (Object.hasOwn(dst.c, name)) throw new Error("Something named “" + name + "” is already in " + (basename(destDir) || "Home") + ".");
+  dst.c[name] = src.c[name]; delete src.c[name];
+  const to = joinPath(destDir, name);
+  moved(path, to); changed();
+  return to;
+}
+function removePath(path) {
+  if (PROTECTED.has(path)) throw new Error(basename(path) + " can't be deleted.");
+  delete folder(dirname(path)).c[basename(path)];
+  for (const w of wins.values()) if (w.onRemoved) w.onRemoved((p) => within(p, path));
+  state.recent = state.recent.filter((p) => !within(p, path));
+  changed();
+}
+// Open windows and the recent list follow a renamed or moved item.
+function moved(from, to) {
+  const remap = (p) => (within(p, from) ? to + p.slice(from.length) : p);
+  for (const w of wins.values()) if (w.onMoved) w.onMoved(remap);
+  state.recent = state.recent.map(remap);
+  // A desktop item renamed in place keeps its spot.
+  const pos = state.desk.pos;
+  if (Object.hasOwn(pos, from) && !Object.hasOwn(pos, to)) { pos[to] = pos[from]; delete pos[from]; }
+}
+// After a restore or erase: anything open that no longer exists is gone.
+function replaceTree(tree) {
+  state.fs = tree; ensureBase(tree);
+  for (const w of wins.values()) if (w.onRemoved) w.onRemoved((p) => !exists(p));
+  state.recent = state.recent.filter(exists);
+  changed();
+}
+const tryFs = (fn) => { try { return fn(); } catch (e) { toast(e.message); return null; } };
+
+function addRecent(p) { state.recent = [p, ...state.recent.filter((x) => x !== p)].slice(0, 8); persist(); }
+const usage = () => fmtSize(JSON.stringify(state).length * 2);
+
+// ---------------------------------------------------------------- look
+function look() {
+  const p = state.prefs;
+  return Object.hasOwn(STYLES, p.style) && HEX.test(p.accent || "") ? { style: p.style, accent: p.accent } : { style: CFG.style, accent: CFG.accent };
+}
+function applyLook() {
+  const { style, accent } = look(), root = document.documentElement, L = lum(accent);
+  root.dataset.style = style;
+  applyTone();
+  root.style.setProperty("--accent", accent);
+  root.style.setProperty("--accent-ink", L > 0.4 ? "#111111" : "#ffffff");
+  const mark = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="' + (style === "brutalist" ? 0 : 9) + '" fill="' + accent + '"/>' +
+    '<g fill="none" stroke="' + (L > 0.4 ? "#111" : "#fff") + '" stroke-width="2.4" stroke-linejoin="round"><rect x="8" y="9" width="16" height="12" rx="2"/><path d="M12 25h8"/></g></svg>';
+  $("#favicon").href = "data:image/svg+xml," + encodeURIComponent(mark);
+}
+// Glass over a pale backdrop wants dark text: the backdrop is the accent's
+// gradient, or the wallpaper once its brightness is known.
+function applyTone() {
+  const src = wallpaper(), L = src && wpLight.has(src) ? wpLight.get(src) : lum(look().accent);
+  document.documentElement.dataset.tone = L > 0.45 ? "light" : "dark";
+}
+
+// ---------------------------------------------------------------- wallpaper
+// Imported pictures are re-encoded as JPEG data URLs and kept under a key of
+// their own, so saving a file doesn't rewrite megabytes of pictures.
+// sel: null follows the server (its picture, else the style's backdrop),
+// "style" is the style's backdrop, "server" the server's picture, else an id.
+const WP_KEY = KEY + ":wallpapers";
+const WP_MAX = 1920;
+const isPic = (s) => typeof s === "string" && /^data:image\/(jpeg|png|webp|gif);base64,/.test(s);
+const SERVER_WP = isPic(CFG.wallpaper) ? CFG.wallpaper : "";
+const wp = (() => {
+  let raw = null;
+  try { raw = JSON.parse(localStorage.getItem(WP_KEY) || "null"); } catch (_) {}
+  const list = raw && Array.isArray(raw.list)
+    ? raw.list.filter((w) => w && typeof w.id === "string" && typeof w.name === "string" && isPic(w.data)).map(({ id, name, data }) => ({ id, name, data }))
+    : [];
+  const ok = (s) => s === "style" || (s === "server" && SERVER_WP) || list.some((w) => w.id === s);
+  return { sel: raw && ok(raw.sel) ? raw.sel : null, list };
+})();
+const wpChoice = () => wp.sel || (SERVER_WP ? "server" : "style");
+function wallpaper() {
+  const sel = wpChoice();
+  if (sel === "server") return SERVER_WP;
+  const w = wp.list.find((x) => x.id === sel);
+  return w ? w.data : "";
+}
+function saveWp() {
+  try { localStorage.setItem(WP_KEY, JSON.stringify(wp)); return true; } catch (_) { return false; }
+}
+
+// Average brightness of a picture, for applyTone.
+const wpLight = new Map();
+function measure(src) {
+  if (wpLight.has(src)) return;
+  const im = new Image();
+  im.onload = () => {
+    const c = document.createElement("canvas"), g = c.getContext("2d");
+    c.width = c.height = 16;
+    g.drawImage(im, 0, 0, 16, 16);
+    const d = g.getImageData(0, 0, 16, 16).data;
+    let sum = 0;
+    for (let i = 0; i < d.length; i += 4) sum += lum("#" + ((1 << 24) | (d[i] << 16) | (d[i + 1] << 8) | d[i + 2]).toString(16).slice(1));
+    wpLight.set(src, sum / (d.length / 4));
+    if (wallpaper() === src) applyTone();
+  };
+  im.src = src;
+}
+
+function applyWallpaper() {
+  const src = wallpaper(), root = document.documentElement;
+  if (src) { root.dataset.wp = ""; measure(src); } else delete root.dataset.wp;
+  $("#wp-img").style.backgroundImage = src ? 'url("' + src + '")' : "";
+  applyTone();
+}
+function setWallpaper(sel) { wp.sel = sel; saveWp(); applyWallpaper(); }
+
+// Shrinks a picture to fit WP_MAX and re-encodes it as a JPEG data URL.
+function encodePicture(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onload = () => {
+      URL.revokeObjectURL(url);
+      const k = Math.min(1, WP_MAX / Math.max(im.naturalWidth, im.naturalHeight));
+      const c = document.createElement("canvas"), g = c.getContext("2d");
+      c.width = Math.max(1, Math.round(im.naturalWidth * k));
+      c.height = Math.max(1, Math.round(im.naturalHeight * k));
+      g.fillStyle = "#000";
+      g.fillRect(0, 0, c.width, c.height);
+      g.drawImage(im, 0, 0, c.width, c.height);
+      resolve(c.toDataURL("image/jpeg", 0.85));
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); reject(new Error(file.name + " isn't a picture this browser can open.")); };
+    im.src = url;
+  });
+}
+function importWallpaper(after) {
+  const input = html('<input type="file" accept="image/*" hidden>');
+  input.addEventListener("change", async () => {
+    const f = input.files[0];
+    input.remove();
+    if (!f) return;
+    let data;
+    try { data = await encodePicture(f); } catch (e) { toast(e.message); return; }
+    const w = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: f.name.replace(/\.[^.]+$/, "").slice(0, 60) || "Picture", data };
+    const prev = wp.sel;
+    wp.list.push(w); wp.sel = w.id;
+    if (!saveWp()) {
+      wp.list.pop(); wp.sel = prev;
+      toast("There isn't room in this browser to keep " + f.name + ". Delete a wallpaper you don't use and try again.");
+      return;
+    }
+    applyWallpaper();
+    if (after) after();
+  });
+  document.body.append(input);
+  input.click();
+}
+function removeWallpaper(id) {
+  wp.list = wp.list.filter((w) => w.id !== id);
+  if (wp.sel === id) wp.sel = null;
+  saveWp(); applyWallpaper();
+}
+
+// ================================================================ window manager
+const layer = $("#windows"), topbar = $("#topbar"), dock = $("#dock");
+const wins = new Map();
+let winSeq = 0, zTop = 1, cascade = 0, focused = null;
+let fullWin = null;   // the window filling the screen in full screen
+
+const narrow = () => innerWidth < 720;
+// The room between the bars, or the whole screen in full screen (the bars only
+// pass over it then).
+function area() {
+  if (document.body.classList.contains("fs")) return { top: 0, bottom: innerHeight, h: innerHeight, w: innerWidth };
+  const top = topbar.getBoundingClientRect().bottom + 12, bottom = dock.getBoundingClientRect().top - 12;
+  return { top, bottom, h: Math.max(160, bottom - top), w: innerWidth };
+}
+// A maximized window takes the whole page; the bars hide and come in over it
+// from the edges (syncBars).
+const maxRect = () => ({ x: 0, y: 0, w: innerWidth, h: innerHeight });
+
+function openWin(o) {
+  if (o.key) { const ex = [...wins.values()].find((w) => w.key === o.key); if (ex) { focusWin(ex); return ex; } }
+  const app = APPS[o.app];
+  const el = html('<section class="win panel" role="dialog">' +
+    '<header class="win-bar"><span class="win-ic">' + ic(app.icon, 16) + '</span><span class="win-title"></span><span class="win-btns">' +
+    '<button class="wbtn" data-w="min" title="Minimize" aria-label="Minimize">' + ic("min", 14, 2) + "</button>" +
+    '<button class="wbtn" data-w="max" title="Maximize" aria-label="Maximize">' + ic("max", 14, 2) + "</button>" +
+    '<button class="wbtn close" data-w="close" title="Close" aria-label="Close">' + ic("x", 14, 2) + "</button></span></header>" +
+    '<div class="win-body"></div><i class="rz e"></i><i class="rz s"></i><i class="rz se"></i></section>');
+  const a = area(), n = cascade++ % 8;
+  const w = clamp(o.w, Math.min(o.minW, a.w - 24), a.w - 24), h = clamp(o.h, Math.min(o.minH, a.h), a.h);
+  const win = {
+    id: ++winSeq, app: o.app, key: o.key || null, el, body: $(".win-body", el), title: "",
+    minW: o.minW, minH: o.minH, max: false, min: false,
+    rect: { x: clamp((o.x == null ? 120 : o.x) + n * 26, 8, Math.max(8, a.w - w - 8)), y: clamp(a.top + 4 + n * 26, a.top, Math.max(a.top, a.bottom - h)), w, h },
+    onFocus: null, onMoved: null, onRemoved: null, onClosed: null, beforeClose: null,
+  };
+  win.setTitle = (t) => { win.title = t; $(".win-title", el).textContent = t; el.setAttribute("aria-label", t); };
+  win.focus = () => focusWin(win);
+  win.close = (force) => closeWin(win, force);
+  win.minimize = () => minimizeWin(win);
+  win.toggleMax = () => setMax(win, !win.max);
+  wins.set(win.id, win);
+  layer.append(el);
+  win.setTitle(o.title);
+  place(win);
+  wireWin(win);
+  o.mount(win);
+  if (o.max || narrow()) setMax(win, true);
+  focusWin(win);
+  return win;
+}
+
+function place(w) {
+  const r = w.max ? maxRect() : w.rect;
+  Object.assign(w.el.style, { left: r.x + "px", top: r.y + "px", width: r.w + "px", height: r.h + "px" });
+}
+function setMax(w, on) {
+  w.max = on;
+  w.el.classList.toggle("max", on);
+  const b = $('[data-w="max"]', w.el);
+  b.innerHTML = ic(on ? "restore" : "max", 14, 2);
+  b.title = on ? "Restore" : "Maximize";
+  b.setAttribute("aria-label", b.title);
+  place(w);
+  if (focused === w) syncBars();
+}
+function focusWin(w) {
+  if (w.min) { w.min = false; w.el.classList.remove("min"); }
+  if (focused !== w) {
+    w.el.style.zIndex = ++zTop;
+    focused = w;
+    for (const o of wins.values()) o.el.classList.toggle("focused", o === w);
+  }
+  if (w.onFocus) w.onFocus();
+  syncChrome();
+}
+function focusTop() {
+  const top = [...wins.values()].filter((w) => !w.min).sort((a, b) => a.el.style.zIndex - b.el.style.zIndex).pop();
+  if (top) focusWin(top);
+  else { focused = null; syncChrome(); }
+}
+function minimizeWin(w) {
+  w.min = true;
+  w.el.classList.add("min");
+  w.el.classList.remove("focused");
+  if (w.el.contains(document.activeElement)) document.activeElement.blur();
+  if (focused === w) { focused = null; focusTop(); }
+  syncChrome();
+}
+async function closeWin(w, force) {
+  if (!wins.has(w.id)) return true;
+  if (!force && w.beforeClose) {
+    focusWin(w);
+    if (!(await w.beforeClose())) return false;
+  }
+  if (w.onClosed) w.onClosed();
+  w.el.remove();
+  wins.delete(w.id);
+  if (focused === w) { focused = null; focusTop(); }
+  syncChrome();
+  return true;
+}
+function showDesktop() { for (const w of wins.values()) if (!w.min) minimizeWin(w); }
+const winOf = (node) => [...wins.values()].find((w) => w.el.contains(node));
+
+function wireWin(w) {
+  const bar = $(".win-bar", w.el);
+  w.el.addEventListener("pointerdown", () => focusWin(w), true);
+  bar.addEventListener("pointerdown", (e) => { if (e.button === 0 && !e.target.closest(".wbtn")) drag(e, w, "move", bar); });
+  bar.addEventListener("dblclick", (e) => { if (!e.target.closest(".wbtn")) w.toggleMax(); });
+  for (const h of $$(".rz", w.el)) h.addEventListener("pointerdown", (e) => { if (e.button === 0) drag(e, w, h.classList[1], h); });
+  $(".win-btns", w.el).addEventListener("click", (e) => {
+    const b = e.target.closest(".wbtn");
+    if (!b) return;
+    if (b.dataset.w === "min") w.minimize();
+    else if (b.dataset.w === "max") w.toggleMax();
+    else w.close();
+  });
+}
+
+// Moves (mode "move") or resizes (e, s, se) a window under the pointer.
+// Frames stop taking the pointer meanwhile, or the browser's would swallow it.
+function drag(e, w, mode, handle) {
+  e.preventDefault();
+  const sx = e.clientX, sy = e.clientY;
+  if (mode === "move" && w.max) {
+    const r = w.el.getBoundingClientRect(), fx = (sx - r.left) / r.width;
+    setMax(w, false);
+    w.rect.x = sx - w.rect.w * fx;
+    w.rect.y = Math.max(area().top, sy - 18);
+    place(w);
+  }
+  const start = { ...w.rect };
+  document.body.classList.add("dragging", "drag-" + mode);
+  handle.setPointerCapture(e.pointerId);
+  const move = (ev) => {
+    const dx = ev.clientX - sx, dy = ev.clientY - sy, r = w.rect;
+    if (mode === "move") {
+      r.x = clamp(start.x + dx, 90 - start.w, innerWidth - 90);
+      r.y = clamp(start.y + dy, 8, innerHeight - 44);
+    } else {
+      if (mode !== "s") r.w = clamp(start.w + dx, w.minW, Math.max(w.minW, innerWidth - start.x - 4));
+      if (mode !== "e") r.h = clamp(start.h + dy, w.minH, Math.max(w.minH, innerHeight - start.y - 4));
+    }
+    place(w);
+  };
+  const up = () => {
+    handle.removeEventListener("pointermove", move);
+    handle.removeEventListener("pointerup", up);
+    handle.removeEventListener("pointercancel", up);
+    document.body.classList.remove("dragging", "drag-" + mode);
+  };
+  handle.addEventListener("pointermove", move);
+  handle.addEventListener("pointerup", up);
+  handle.addEventListener("pointercancel", up);
+}
+
+addEventListener("resize", () => {
+  for (const w of wins.values()) {
+    if (!w.max) { w.rect.x = clamp(w.rect.x, 90 - w.rect.w, innerWidth - 90); w.rect.y = clamp(w.rect.y, 8, innerHeight - 44); }
+    place(w);
+  }
+});
+
+// A click into the Browser's frame never reaches this document; the page
+// losing focus to that frame is the only sign of it.
+addEventListener("blur", () => {
+  closeMenus(); closeStart();
+  setTimeout(() => {
+    const a = document.activeElement;
+    if (a && a.tagName === "IFRAME") { const w = winOf(a); if (w && focused !== w) focusWin(w); }
+  }, 0);
+});
+
+// ================================================================ menus
+let openMenu = null;
+function closeMenus() {
+  if (!openMenu) return;
+  openMenu.el.remove();
+  if (openMenu.anchor) openMenu.anchor.classList.remove("open");
+  openMenu = null;
+  if (document.body.classList.contains("hidebars")) hideBars();
+}
+// items: {label, icon?, kbd?, disabled?, run} or "-" for a separator.
+function showMenu(items, x, y, anchor) {
+  closeMenus(); closeStart();
+  const m = html('<div class="menu panel" role="menu"></div>');
+  for (const it of items) {
+    if (it === "-") { m.append(html('<div class="menu-sep" role="separator"></div>')); continue; }
+    const b = html('<button class="menu-item" role="menuitem">' + (it.icon ? ic(it.icon, 16) : '<span class="ic-pad"></span>') +
+      "<span>" + esc(it.label) + "</span>" + (it.kbd ? "<kbd>" + esc(it.kbd) + "</kbd>" : "") + "</button>");
+    b.disabled = !!it.disabled;
+    b.addEventListener("click", () => { closeMenus(); it.run(); });
+    m.append(b);
+  }
+  m.addEventListener("keydown", (e) => {
+    const all = $$(".menu-item:not(:disabled)", m), i = all.indexOf(document.activeElement);
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      all[(i + (e.key === "ArrowDown" ? 1 : -1) + all.length) % all.length].focus();
+    }
+  });
+  $("#desktop").append(m);
+  const r = m.getBoundingClientRect();
+  m.style.left = clamp(x, 8, innerWidth - r.width - 8) + "px";
+  m.style.top = (y + r.height > innerHeight - 8 ? Math.max(8, y - r.height) : y) + "px";
+  if (anchor) anchor.classList.add("open");
+  openMenu = { el: m, anchor };
+  m.addEventListener("pointerleave", () => { if (document.body.classList.contains("hidebars")) hideBars(); });
+  return m;
+}
+
+document.addEventListener("pointerdown", (e) => {
+  if (openMenu && !openMenu.el.contains(e.target) && !(openMenu.anchor && openMenu.anchor.contains(e.target))) closeMenus();
+  if (!startEl.hidden && !startEl.contains(e.target) && !e.target.closest("#start-btn, #search-btn")) closeStart();
+}, true);
+
+// ================================================================ dialogs
+function modal(scrim, onCancel) {
+  const prev = document.activeElement;
+  closeMenus(); closeStart();
+  $("#desktop").append(scrim);
+  scrim.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onCancel(); } });
+  return () => { scrim.remove(); if (prev && document.contains(prev) && prev.focus) prev.focus(); };
+}
+
+// buttons: [{label, value, primary?, danger?}]. With an input, the primary
+// button resolves to its trimmed text (after input.validate passes).
+function dialog({ title, message = "", input = null, buttons }) {
+  return new Promise((resolve) => {
+    const scrim = html('<div class="scrim"><div class="dialog panel" role="alertdialog" aria-modal="true"><h2></h2>' +
+      (message ? "<p></p>" : "") + (input ? '<input class="inp" type="text" spellcheck="false" autocomplete="off">' : "") +
+      '<div class="dlg-err" role="alert"></div><div class="dlg-btns"></div></div></div>');
+    const box = scrim.firstElementChild, field = $(".inp", box), err = $(".dlg-err", box), row = $(".dlg-btns", box);
+    $("h2", box).textContent = title;
+    box.setAttribute("aria-label", title);
+    if (message) $("p", box).textContent = message;
+    const close = modal(scrim, () => done(null));
+    function done(v) { close(); resolve(v); }
+    let primary = null;
+    function submit(b) {
+      if (!field || !b.primary) return done(b.value);
+      const v = field.value.trim(), msg = input.validate ? input.validate(v) : "";
+      if (msg) { err.textContent = msg; field.focus(); return; }
+      done(v);
+    }
+    for (const b of buttons) {
+      const el = html('<button class="btn' + (b.primary ? " primary" : "") + (b.danger ? " danger" : "") + '"></button>');
+      el.textContent = b.label;
+      el.addEventListener("click", () => submit(b));
+      row.append(el);
+      if (b.primary) primary = { b, el };
+    }
+    if (field) {
+      field.value = input.value || "";
+      field.addEventListener("keydown", (e) => { if (e.key === "Enter" && primary) { e.preventDefault(); submit(primary.b); } });
+      field.addEventListener("input", () => { err.textContent = ""; });
+      field.focus();
+      const dot = field.value.lastIndexOf(".");
+      field.setSelectionRange(0, input.stem && dot > 0 ? dot : field.value.length);
+    } else (primary ? primary.el : row.lastElementChild).focus();
+  });
+}
+const ask = (o) => dialog({ title: o.title, message: o.message, input: { value: o.value, validate: o.validate, stem: true },
+  buttons: [{ label: "Cancel", value: null }, { label: o.ok || "OK", primary: true }] });
+
+// A small folder browser for Open and Save as. Resolves to a path or null.
+function pickPath({ mode, dir, name = "" }) {
+  return new Promise((resolve) => {
+    const save = mode === "save";
+    let cur = isDir(dir) ? dir : "/Documents", sel = null;
+    const scrim = html('<div class="scrim"><div class="dialog picker panel" role="dialog" aria-modal="true" aria-label="' + (save ? "Save as" : "Open a file") + '">' +
+      "<h2>" + (save ? "Save as" : "Open a file") + '</h2><div class="f-crumbs"></div><div class="pk-list well" tabindex="0"></div>' +
+      (save ? '<label class="pk-name"><span>Name</span><input class="inp" type="text" spellcheck="false" autocomplete="off"></label>' : "") +
+      '<div class="dlg-err" role="alert"></div><div class="dlg-btns"><button class="btn" data-v="cancel">Cancel</button>' +
+      '<button class="btn primary" data-v="ok">' + (save ? "Save" : "Open") + "</button></div></div></div>");
+    const box = scrim.firstElementChild, crumbsEl = $(".f-crumbs", box), listEl = $(".pk-list", box), err = $(".dlg-err", box);
+    const field = $(".inp", box), okBtn = $('[data-v="ok"]', box);
+    const close = modal(scrim, () => done(null));
+    function done(v) { close(); resolve(v); }
+    function render() {
+      crumbsEl.innerHTML = crumbs(cur);
+      const items = list(cur);
+      listEl.innerHTML = items.length ? items.map((e) =>
+        '<div class="pk-row' + (e.path === sel ? " sel" : "") + (save && e.node.t === "f" ? " dim" : "") + '" data-path="' + esc(e.path) + '">' +
+        ic(e.node.t === "d" ? "folder" : "file", 18) + "<span>" + esc(e.name) + "</span></div>").join("")
+        : '<div class="sm-none">This folder is empty.</div>';
+      if (!save) okBtn.disabled = !(sel && isFile(sel));
+    }
+    function ok() {
+      if (!save) { if (sel && isFile(sel)) done(sel); return; }
+      const v = field.value.trim(), msg = validName(v) || (isDir(joinPath(cur, v)) ? "There's a folder with that name here." : "");
+      if (msg) { err.textContent = msg; field.focus(); return; }
+      done(joinPath(cur, v));
+    }
+    crumbsEl.addEventListener("click", (e) => { const c = e.target.closest(".crumb"); if (c) { cur = c.dataset.go; sel = null; render(); } });
+    // Selection only restyles the rows: rebuilding them here would swap the
+    // element out from under the second click of a double-click.
+    listEl.addEventListener("click", (e) => {
+      const r = e.target.closest(".pk-row");
+      sel = r ? r.dataset.path : null;
+      for (const row of $$(".pk-row", listEl)) row.classList.toggle("sel", row === r);
+      if (save && sel && isFile(sel)) field.value = basename(sel);
+      if (!save) okBtn.disabled = !(sel && isFile(sel));
+    });
+    listEl.addEventListener("dblclick", (e) => {
+      const r = e.target.closest(".pk-row");
+      if (!r) return;
+      if (isDir(r.dataset.path)) { cur = r.dataset.path; sel = null; render(); }
+      else { sel = r.dataset.path; if (save) field.value = basename(sel); ok(); }
+    });
+    $('[data-v="cancel"]', box).addEventListener("click", () => done(null));
+    okBtn.addEventListener("click", ok);
+    if (field) {
+      field.value = name;
+      field.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); ok(); } });
+      field.addEventListener("input", () => { err.textContent = ""; });
+    }
+    render();
+    if (field) { field.focus(); const dot = name.lastIndexOf("."); field.setSelectionRange(0, dot > 0 ? dot : name.length); }
+    else listEl.focus();
+  });
+}
+
+function crumbs(dir) {
+  let out = '<button class="crumb" data-go="/">Home</button>', acc = "";
+  for (const p of parts(dir)) {
+    acc += "/" + p;
+    out += '<span class="crumb-sep">/</span><button class="crumb" data-go="' + esc(acc) + '">' + esc(p) + "</button>";
+  }
+  return out;
+}
+
+// ================================================================ file actions
+async function newFolder(dir) {
+  const name = await ask({ title: "New folder", value: freeName(dir, "New folder"), ok: "Create", validate: (v) => nameError(dir, v) });
+  if (name) tryFs(() => makeDir(dir, name));
+}
+async function newTextFile(dir) {
+  const name = await ask({ title: "New text file", value: freeName(dir, "Untitled.txt"), ok: "Create", validate: (v) => nameError(dir, v) });
+  if (!name) return;
+  const path = joinPath(dir, name);
+  if (tryFs(() => { writeFile(path, ""); return true; })) openEditor(path);
+}
+async function promptRename(path) {
+  const dir = dirname(path), old = basename(path);
+  const name = await ask({ title: "Rename “" + old + "”", value: old, ok: "Rename", validate: (v) => nameError(dir, v, old) });
+  if (name && name !== old) tryFs(() => renamePath(path, name));
+}
+async function confirmDelete(path) {
+  const n = get(path);
+  if (!n) return;
+  const ok = await dialog({
+    title: "Delete “" + basename(path) + "”?",
+    message: n.t === "d" ? "The folder and everything in it will be deleted. This can't be undone." : "This can't be undone.",
+    buttons: [{ label: "Cancel", value: false }, { label: "Delete", value: true, primary: true, danger: true }],
+  });
+  if (ok) tryFs(() => removePath(path));
+}
+function openPath(path, goDir) {
+  if (isDir(path)) (goDir || openFiles)(path);
+  else if (isFile(path)) openEditor(path);
+}
+function itemMenu(path, goDir) {
+  const n = get(path), locked = PROTECTED.has(path);
+  if (!n) return [];
+  return [
+    { label: "Open", icon: n.t === "d" ? "open" : "edit", run: () => openPath(path, goDir) },
+    ...(n.t === "f" ? [{ label: "Download", icon: "download", run: () => download(basename(path), n.s) }] : []),
+    "-",
+    { label: "Rename…", icon: "rename", disabled: locked, run: () => promptRename(path) },
+    { label: "Delete", icon: "trash", disabled: locked, run: () => confirmDelete(path) },
+  ];
+}
+function download(name, text, type = "text/plain;charset=utf-8") {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = document.createElement("a");
+  a.href = url; a.download = name;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+const MAX_IMPORT = 1048576;
+async function importFiles(files, dir) {
+  let n = 0;
+  for (const f of files) {
+    if (f.size > MAX_IMPORT) { toast(f.name + " is larger than 1 MB, so it wasn't imported."); continue; }
+    let text;
+    try { text = await f.text(); } catch (_) { toast("Couldn't read " + f.name + "."); continue; }
+    if (text.includes("\u0000")) { toast(f.name + " isn't a text file, so it wasn't imported."); continue; }
+    const clean = f.name.replace(/[\/\\]/g, "_");
+    const name = freeName(dir, validName(clean) ? "Imported file" : clean);
+    if (tryFs(() => { writeFile(joinPath(dir, name), text); return true; })) n++;
+  }
+  if (n) toast("Imported " + n + " file" + (n === 1 ? "" : "s") + " into " + (basename(dir) || "Home") + ".");
+}
+function chooseImport(dir) {
+  const input = html('<input type="file" multiple hidden>');
+  input.addEventListener("change", () => { importFiles([...input.files], dir); input.remove(); });
+  document.body.append(input);
+  input.click();
+}
+
+// Drag and drop: items moved between folders, and files dropped in from the
+// computer. dragPath is the item being dragged; drop targets resolve the
+// element under the pointer to {el, dir} or null.
+const DRAG_TYPE = "application/x-plover-path";
+let dragPath = null;
+const external = (e) => [...e.dataTransfer.types].includes("Files");
+function canDrop(e, dir) {
+  if (external(e)) return true;
+  return !!dragPath && dir !== dirname(dragPath) && !within(dir, dragPath);
+}
+function startItemDrag(e, path) {
+  dragPath = path;
+  e.dataTransfer.setData(DRAG_TYPE, path);
+  e.dataTransfer.effectAllowed = "move";
+}
+function wireDrops(root, resolve) {
+  let hot = null;
+  const mark = (el) => { if (hot === el) return; if (hot) hot.classList.remove("drop"); hot = el; if (hot) hot.classList.add("drop"); };
+  root.addEventListener("dragover", (e) => {
+    const t = resolve(e.target);
+    if (!t || !canDrop(e, t.dir)) { mark(null); return; }
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = external(e) ? "copy" : "move";
+    mark(t.el);
+  });
+  root.addEventListener("dragleave", (e) => { if (!root.contains(e.relatedTarget)) mark(null); });
+  root.addEventListener("drop", (e) => {
+    const t = resolve(e.target);
+    mark(null);
+    if (!t || !canDrop(e, t.dir)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (external(e)) importFiles([...e.dataTransfer.files], t.dir);
+    else tryFs(() => movePath(dragPath, t.dir));
+    dragPath = null;
+  });
+}
+document.addEventListener("dragend", () => { dragPath = null; });
+// A file dropped anywhere else must not replace this page with itself.
+addEventListener("dragover", (e) => e.preventDefault());
+addEventListener("drop", (e) => e.preventDefault());
+
+// ================================================================ apps
+const APPS = {
+  browser: { name: "Browser", icon: "globe", open: () => openBrowser() },
+  files: { name: "Files", icon: "folder", open: () => openFiles("/") },
+  editor: { name: "Text Editor", icon: "edit", open: () => openEditor(null) },
+  terminal: { name: "Terminal", icon: "terminal", open: () => openTerminal() },
+  settings: { name: "Settings", icon: "sliders", open: () => openSettings() },
+};
+const APP_ORDER = ["browser", "files", "editor", "terminal", "settings"];
+
+// ---------------------------------------------------------------- installed apps
+// Single HTML files picked in Plover Server, built into this page (CFG.apps).
+// Each runs in a sandboxed frame with an opaque origin, so it can't reach this
+// page, its files or the token; this page's CSP still applies to it, so it
+// can't load anything from the network either. Its localStorage is a stand-in
+// (appShim) that this page keeps under "plover-os:<server id>:app:<app id>".
+const APP_DATA_MAX = 1024 * 1024;
+const installed = new Map();   // key -> {id, name, icon, html}
+for (const a of Array.isArray(CFG.apps) ? CFG.apps : []) {
+  if (!a || typeof a.html !== "string" || !/^[a-z0-9]{6,32}$/.test(a.id || "")) continue;
+  const key = "app-" + a.id, name = String(a.name || "App");
+  installed.set(key, { id: a.id, name, html: a.html });
+  APPS[key] = { name, icon: /^data:image\/png;base64,/.test(a.icon || "") ? a.icon : "app", open: () => openInstalled(key) };
+  APP_ORDER.splice(APP_ORDER.length - 1, 0, key);   // before Settings
+}
+
+function openInstalled(key) {
+  const a = area();
+  return openWin({ app: key, key, title: APPS[key].name, w: Math.min(960, a.w - 160), h: Math.min(680, a.h), minW: 320, minH: 220, mount: (win) => mountInstalled(win, key) });
+}
+
+// Runs inside the app's frame before its own scripts: localStorage and
+// sessionStorage the sandbox would otherwise refuse, and the page title for
+// the window. Writes go to this page by postMessage.
+function appShim(seed) {
+  const post = (m) => parent.postMessage(Object.assign({ plover: "app" }, m), "*");
+  const make = (data, keep) => {
+    const map = new Map(Object.entries(data));
+    return {
+      get length() { return map.size; },
+      key: (i) => { const k = [...map.keys()][i]; return k === undefined ? null : k; },
+      getItem: (k) => (map.has(String(k)) ? map.get(String(k)) : null),
+      setItem: (k, v) => { map.set(String(k), String(v)); if (keep) post({ t: "set", k: String(k), v: String(v) }); },
+      removeItem: (k) => { if (map.delete(String(k)) && keep) post({ t: "remove", k: String(k) }); },
+      clear: () => { map.clear(); if (keep) post({ t: "clear" }); },
+    };
+  };
+  for (const [name, data, keep] of [["localStorage", seed, true], ["sessionStorage", {}, false]]) {
+    try { Object.defineProperty(window, name, { value: make(data, keep), configurable: true }); } catch (_) {}
+  }
+  addEventListener("DOMContentLoaded", () => {
+    const title = () => post({ t: "title", v: document.title });
+    title();
+    new MutationObserver(title).observe(document.head || document.documentElement, { subtree: true, childList: true, characterData: true });
+  });
+}
+
+// Without a prototype, so an app's "__proto__" key is just a key.
+function loadAppData(id) {
+  const out = Object.create(null);
+  try {
+    const d = JSON.parse(localStorage.getItem(KEY + ":app:" + id) || "{}");
+    if (d && typeof d === "object" && !Array.isArray(d)) for (const [k, v] of Object.entries(d)) if (typeof v === "string") out[k] = v;
+  } catch (_) {}
+  return out;
+}
+
+// The app's file with the shim put first in its <head> (or as near as it has).
+function appDoc(html, seed) {
+  const s = "<script>(" + appShim + ")(" + JSON.stringify(seed).replace(/</g, "\\u003c") + ");<\/script>";
+  const m = /<head\b[^>]*>/i.exec(html) || /<html\b[^>]*>/i.exec(html) || /<!doctype[^>]*>/i.exec(html);
+  return m ? html.slice(0, m.index + m[0].length) + s + html.slice(m.index + m[0].length) : s + html;
+}
+
+function mountInstalled(win, key) {
+  const app = installed.get(key), storeKey = KEY + ":app:" + app.id;
+  const data = loadAppData(app.id);
+  let saveTimer = 0, warned = false;
+  const save = () => {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      try { localStorage.setItem(storeKey, JSON.stringify(data)); }
+      catch (_) { if (!warned) { warned = true; toast("This browser isn't letting " + app.name + " save."); } }
+    }, 250);
+  };
+  const f = document.createElement("iframe");
+  f.className = "br-frame app-frame";
+  f.title = app.name;
+  f.sandbox = "allow-scripts allow-forms allow-modals allow-popups allow-downloads allow-pointer-lock";
+  f.allow = "fullscreen; autoplay; clipboard-write";
+  f.srcdoc = appDoc(app.html, data);
+  win.body.append(f);
+
+  const onMessage = (e) => {
+    const m = e.data;
+    if (e.source !== f.contentWindow || !m || m.plover !== "app") return;
+    if (m.t === "title") { win.setTitle(typeof m.v === "string" && m.v.trim() ? m.v.trim().slice(0, 120) : app.name); return; }
+    if (m.t === "clear") { for (const k of Object.keys(data)) delete data[k]; save(); return; }
+    if (typeof m.k !== "string") return;
+    if (m.t === "remove") { delete data[m.k]; save(); return; }
+    if (m.t !== "set" || typeof m.v !== "string") return;
+    const old = data[m.k];
+    data[m.k] = m.v;
+    if (bytes(JSON.stringify(data)) > APP_DATA_MAX) {
+      if (old === undefined) delete data[m.k]; else data[m.k] = old;
+      if (!warned) { warned = true; toast(app.name + " is out of storage space (" + fmtSize(APP_DATA_MAX) + "). Some changes weren't saved."); }
+      return;
+    }
+    save();
+  };
+  addEventListener("message", onMessage);
+  win.onFocus = () => { if (document.activeElement !== f) f.focus(); };
+  win.onClosed = () => {
+    removeEventListener("message", onMessage);
+    if (saveTimer) { clearTimeout(saveTimer); try { localStorage.setItem(storeKey, JSON.stringify(data)); } catch (_) {} }
+  };
+}
+
+// ---------------------------------------------------------------- Browser
+function openBrowser() {
+  const a = area();
+  return openWin({ app: "browser", key: "browser", title: "Browser", x: 112, w: Math.min(1360, a.w - 128), h: a.h, minW: 420, minH: 300, mount: mountBrowser });
+}
+function mountBrowser(win) {
+  if (!BUILT) {
+    win.body.innerHTML = '<div class="br-empty"><strong>No server connected</strong>This desktop is a preview. Download it from Plover Server to browse through your server.</div>';
+    return;
+  }
+  const f = document.createElement("iframe");
+  f.className = "br-frame";
+  f.title = "Plover browser";
+  f.allow = "fullscreen; clipboard-read; clipboard-write; autoplay";
+  f.srcdoc = CLIENT_HTML;
+  win.body.append(f);
+  // The client titles its page after the tab on screen; the window follows.
+  f.addEventListener("load", () => {
+    const doc = f.contentDocument;
+    if (!doc) return;
+    const sync = () => win.setTitle(doc.title && doc.title !== "Plover" ? doc.title : "Browser");
+    sync();
+    new MutationObserver(sync).observe(doc.head, { subtree: true, childList: true, characterData: true });
+  });
+  win.onFocus = () => { if (document.activeElement !== f) f.focus(); };
+}
+
+// ---------------------------------------------------------------- Terminal
+// Signs in to the server like an ssh client: its own socket to the stream,
+// the access token, and the terminal password typed here (never stored).
+// The shell runs on pipes, not a terminal, so this side edits each line,
+// echoes it and sends it on Enter.
+const ANSI = /\x1b(?:\[[0-?]*[ -\/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)|[@-Z\\-_])/g;
+const CTRL = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g;
+const MAX_SCREEN = 400000;
+const termHistory = [];
+
+function openTerminal() {
+  return openWin({ app: "terminal", title: "Terminal", w: 760, h: 480, minW: 340, minH: 240, mount: mountTerminal });
+}
+
+function closeReason(code) {
+  if (code === 4401) return "The server refused this desktop’s access token. Download the desktop again from Plover Server.";
+  if (code === 4429) return "Too many attempts. Wait a minute and try again.";
+  if (code === 1006 || code === 1015) return "Couldn’t reach the server. Check that it’s running and try again.";
+  return "The server closed the connection (" + code + ").";
+}
+
+function mountTerminal(win) {
+  if (!BUILT || !CFG.server || !CFG.token) {
+    win.body.innerHTML = '<div class="br-empty"><strong>No server connected</strong>This desktop is a preview. Download it from Plover Server to open a terminal on your server.</div>';
+    return;
+  }
+  const body = win.body;
+  let ws = null, ready = false, lastErr = "", view = null;
+
+  // ---- sign in
+  function showLogin(err) {
+    ready = false;
+    win.setTitle("Terminal");
+    body.innerHTML = '<div class="tm"><div class="tm-login"><div class="tm-card">' +
+      '<span class="tm-lock">' + ic("lock", 22) + "</span><h3></h3>" +
+      "<p>Enter the terminal password for this server. Commands you run here run on the server, as the person who runs it.</p>" +
+      '<input class="inp" type="password" autocomplete="current-password" placeholder="Password" aria-label="Terminal password">' +
+      '<div class="dlg-err" role="alert"></div><button class="btn primary">Connect</button></div></div></div>';
+    $("h3", body).textContent = "Sign in to " + CFG.name;
+    const pw = $(".inp", body), btn = $(".btn", body), errEl = $(".dlg-err", body);
+    errEl.textContent = err || "";
+    const go = () => {
+      if (!pw.value) { errEl.textContent = "Enter the password."; pw.focus(); return; }
+      btn.disabled = pw.disabled = true;
+      btn.textContent = "Connecting…";
+      errEl.textContent = "";
+      connect(pw.value);
+      pw.value = "";
+    };
+    btn.addEventListener("click", go);
+    pw.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); go(); } });
+    pw.addEventListener("input", () => { errEl.textContent = ""; });
+    view = { focus: () => pw.focus({ preventScroll: true }) };
+    if (focused === win) view.focus();
+  }
+
+  function connect(password) {
+    lastErr = "";
+    let sock;
+    try { sock = new WebSocket(CFG.server); }
+    catch (e) { showLogin("Couldn’t connect: " + e.message); return; }
+    ws = sock;
+    sock.binaryType = "arraybuffer";
+    sock.onopen = () => {
+      const device = "Web OS terminal" + (navigator.userAgentData && navigator.userAgentData.platform ? " on " + navigator.userAgentData.platform : "");
+      sock.send(JSON.stringify({ t: "auth", proto: 1, mode: "terminal", token: CFG.token, password, client: { device } }));
+      password = "";
+    };
+    sock.onmessage = (e) => {
+      if (ws !== sock) return;
+      let m = null;
+      try {
+        const b = typeof e.data === "string" ? null : new Uint8Array(e.data);
+        m = b ? (b[0] === 0 ? JSON.parse(new TextDecoder().decode(b.subarray(1))) : null) : JSON.parse(e.data);
+      } catch (_) {}
+      if (m) onMessage(m);
+    };
+    sock.onclose = (e) => {
+      if (ws !== sock) return;
+      ws = null;
+      if (!ready) { showLogin(lastErr || closeReason(e.code)); return; }
+      ready = false;
+      if (view && view.ended) view.ended(lastErr || (e.code === 1000 ? "" : closeReason(e.code)));
+    };
+  }
+
+  function onMessage(m) {
+    if (m.t === "err") lastErr = String(m.msg || "");
+    else if (m.t === "term.ready") { ready = true; showScreen(m); }
+    else if (!view || !view.write) return;
+    else if (m.t === "term.out") view.write(String(m.d));
+    else if (m.t === "term.note") view.note(String(m.d));
+    else if (m.t === "term.exit") view.note("The shell exited" + (m.code != null && m.code !== 0 ? " (" + m.code + ")" : "") + ".");
+  }
+  const send = (o) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); };
+
+  // ---- the screen
+  function showScreen(info) {
+    const who = String(info.user || "") + "@" + String(info.host || "server");
+    win.setTitle(who);
+    body.innerHTML = '<div class="tm"><div class="tm-screen well"><pre class="tm-out"></pre>' +
+      '<div class="tm-cur"><span class="tm-tail"></span><input class="tm-in" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="Command"></div></div>' +
+      '<div class="tm-status"><i class="tm-dot on"></i><span></span></div></div>';
+    const screen = $(".tm-screen", body), out = $(".tm-out", body), cur = $(".tm-cur", body), tailEl = $(".tm-tail", body);
+    const input = $(".tm-in", body), dot = $(".tm-dot", body), statusEl = $(".tm-status span", body);
+    statusEl.textContent = "Connected to " + who + (info.shell ? " · " + info.shell : "") + " · line mode: full-screen programs won’t work";
+    let pend = "", size = 0, hi = termHistory.length, draft = "";
+
+    const atBottom = () => screen.scrollHeight - screen.scrollTop - screen.clientHeight < 40;
+    const clean = (l) => { l = l.replace(/\r+$/, ""); const i = l.lastIndexOf("\r"); return (i >= 0 ? l.slice(i + 1) : l).replace(CTRL, ""); };
+    function append(text, cls) {
+      if (!text) return;
+      const node = cls ? Object.assign(document.createElement("span"), { className: cls, textContent: text }) : document.createTextNode(text);
+      out.append(node);
+      size += text.length;
+      while (size > MAX_SCREEN && out.firstChild) { size -= out.firstChild.textContent.length; out.firstChild.remove(); }
+    }
+    // Complete lines go into the scrollback; the unfinished one (usually the
+    // prompt) sits in front of the input.
+    function write(text) {
+      const stick = atBottom();
+      const buf = pend + text.replace(ANSI, "");
+      const nl = buf.lastIndexOf("\n");
+      if (nl >= 0) { append(buf.slice(0, nl).split("\n").map(clean).join("\n") + "\n"); pend = buf.slice(nl + 1); }
+      else pend = buf;
+      tailEl.textContent = clean(pend);
+      if (stick) screen.scrollTop = screen.scrollHeight;
+    }
+    function commit(typed) { append(clean(pend) + typed + "\n"); pend = ""; tailEl.textContent = ""; }
+    function note(text) {
+      const stick = atBottom();
+      if (pend) commit("");
+      append(text + "\n", "tm-note");
+      if (stick) screen.scrollTop = screen.scrollHeight;
+    }
+    function runLine(line) {
+      commit(line);
+      if (line.trim() && termHistory[termHistory.length - 1] !== line) { termHistory.push(line); if (termHistory.length > 200) termHistory.shift(); }
+      hi = termHistory.length; draft = "";
+      // cmd reading from a pipe garbles anything outside ASCII, so a command
+      // naming "Café" would act on some other name. Better not to run it.
+      if (info.shell === "cmd" && /[^\x00-\x7f]/.test(line)) {
+        note("Not run: the Windows command prompt can't take accented or other non-ASCII characters over this connection. Use wildcards instead, e.g. Caf*.");
+        send({ t: "term.in", d: "\n" });
+        return;
+      }
+      send({ t: "term.in", d: line + "\n" });
+      screen.scrollTop = screen.scrollHeight;
+    }
+
+    input.addEventListener("keydown", (e) => {
+      const ctrl = e.ctrlKey && !e.altKey && !e.metaKey, k = e.key.toLowerCase();
+      if (e.key === "Enter") { e.preventDefault(); const v = input.value; input.value = ""; runLine(v); }
+      else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+        e.preventDefault();
+        if (hi === termHistory.length) draft = input.value;
+        hi = clamp(hi + (e.key === "ArrowUp" ? -1 : 1), 0, termHistory.length);
+        input.value = hi === termHistory.length ? draft : termHistory[hi];
+        input.setSelectionRange(input.value.length, input.value.length);
+      } else if (ctrl && k === "c" && input.selectionStart === input.selectionEnd && !String(getSelection())) {
+        e.preventDefault();
+        commit(input.value + "^C"); input.value = "";
+        send({ t: "term.int" });
+      } else if (ctrl && k === "l") { e.preventDefault(); out.textContent = ""; size = 0; }
+      else if (e.key === "Tab") e.preventDefault();
+    });
+    // Pasted lines run one by one, as if typed; the last one, if it has no
+    // line break after it, waits in the input.
+    input.addEventListener("paste", (e) => {
+      const text = e.clipboardData.getData("text/plain");
+      if (!/[\r\n]/.test(text)) return;
+      e.preventDefault();
+      const lines = (input.value.slice(0, input.selectionStart) + text + input.value.slice(input.selectionEnd)).split(/\r?\n/);
+      const rest = lines.pop();
+      for (const l of lines) runLine(l);
+      input.value = rest;
+    });
+    screen.addEventListener("click", () => { if (!String(getSelection()) && !input.disabled) input.focus({ preventScroll: true }); });
+
+    view = {
+      write, note,
+      focus: () => input.focus({ preventScroll: true }),
+      ended(reason) {
+        if (reason) note(reason);
+        note("Disconnected.");
+        cur.remove();
+        dot.classList.remove("on");
+        statusEl.textContent = "Disconnected from " + who;
+        win.setTitle("Terminal");
+        const again = html('<div class="tm-ended"><button class="btn">' + ic("lock", 15) + "Sign in again</button></div>");
+        $(".btn", again).addEventListener("click", () => showLogin());
+        screen.append(again);
+        screen.scrollTop = screen.scrollHeight;
+        view.focus = () => $(".btn", again).focus({ preventScroll: true });
+      },
+    };
+    if (focused === win) view.focus();
+  }
+
+  win.onFocus = () => { if (view && !body.contains(document.activeElement)) view.focus(); };
+  win.beforeClose = async () => {
+    if (!ready) return true;
+    return dialog({ title: "Close the terminal?", message: "This ends the shell on the server and anything still running in it.",
+      buttons: [{ label: "Cancel", value: false }, { label: "Close", value: true, primary: true }] });
+  };
+  win.onClosed = () => { const s = ws; ws = null; if (s) s.close(1000); };
+  showLogin();
+}
+
+// ---------------------------------------------------------------- Files
+function openFiles(path) {
+  return openWin({ app: "files", title: "Files", w: 780, h: 500, minW: 340, minH: 260, mount: (w) => mountFiles(w, isDir(path) ? path : "/") });
+}
+function mountFiles(win, start) {
+  const st = { dir: start, hist: [], sel: null };
+  win.body.innerHTML =
+    '<div class="files"><aside class="f-side"><div class="f-sec">Places</div>' +
+    '<button class="f-place" data-go="/">' + ic("home") + "Home</button>" +
+    '<button class="f-place" data-go="/Desktop">' + ic("monitor") + "Desktop</button>" +
+    '<button class="f-place" data-go="/Documents">' + ic("doc") + "Documents</button>" +
+    '<span class="grow"></span><div class="f-usage"></div></aside>' +
+    '<div class="f-main"><div class="f-tool">' +
+    '<button class="btn icon" data-act="back" title="Back" aria-label="Back">' + ic("back", 16) + "</button>" +
+    '<button class="btn icon" data-act="up" title="Enclosing folder" aria-label="Enclosing folder">' + ic("up", 16) + "</button>" +
+    '<div class="f-crumbs"></div>' +
+    '<button class="btn icon" data-act="mkdir" title="New folder" aria-label="New folder">' + ic("folderPlus", 16) + "</button>" +
+    '<button class="btn icon" data-act="mkfile" title="New text file" aria-label="New text file">' + ic("filePlus", 16) + "</button>" +
+    '<button class="btn icon" data-act="import" title="Import files from this computer" aria-label="Import files">' + ic("upload", 16) + "</button>" +
+    '</div><div class="f-grid well" tabindex="0" aria-label="Folder contents"></div><div class="f-status"></div></div></div>';
+  const body = win.body, grid = $(".f-grid", body), crumbsEl = $(".f-crumbs", body), status = $(".f-status", body);
+
+  function go(dir) {
+    if (!isDir(dir) || dir === st.dir) return;
+    st.hist.push(st.dir);
+    st.dir = dir; st.sel = null;
+    render();
+  }
+  function render() {
+    while (!isDir(st.dir)) st.dir = dirname(st.dir);
+    if (st.sel && !exists(st.sel)) st.sel = null;
+    win.setTitle(st.dir === "/" ? "Files" : basename(st.dir));
+    crumbsEl.innerHTML = crumbs(st.dir);
+    const items = list(st.dir);
+    grid.innerHTML = items.length ? items.map((e) =>
+      '<div class="f-item' + (e.path === st.sel ? " sel" : "") + '" data-path="' + esc(e.path) + '" draggable="true" title="' + esc(e.name) + '">' +
+      '<span class="f-ic">' + ic(e.node.t === "d" ? "folder" : "file", 34, 1.5) + '</span><span class="f-nm">' + esc(e.name) + "</span></div>").join("")
+      : '<div class="f-empty">This folder is empty.<br>Drop files here from your computer to import them.</div>';
+    for (const p of $$(".f-place", body)) p.classList.toggle("on", p.dataset.go === st.dir);
+    $('[data-act="back"]', body).disabled = !st.hist.some(isDir);
+    $('[data-act="up"]', body).disabled = st.dir === "/";
+    $(".f-usage", body).textContent = usage() + " used";
+    showStatus(items.length);
+  }
+  function showStatus(count) {
+    const n = st.sel && get(st.sel);
+    if (n) {
+      status.innerHTML = "<span>" + esc(basename(st.sel)) + "</span><span>· " +
+        (n.t === "d" ? Object.keys(n.c).length + " items" : fmtSize(bytes(n.s))) + " · changed " + esc(fmtTime(n.m)) + "</span>";
+    } else {
+      if (count == null) count = list(st.dir).length;
+      status.innerHTML = "<span>" + count + (count === 1 ? " item" : " items") + "</span>";
+    }
+  }
+  function select(path) {
+    st.sel = path;
+    for (const it of $$(".f-item", grid)) it.classList.toggle("sel", it.dataset.path === path);
+    showStatus();
+  }
+
+  body.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-act], [data-go]");
+    if (!b || !body.contains(b)) return;
+    if (b.dataset.go) return go(b.dataset.go);
+    const act = b.dataset.act;
+    if (act === "back") { while (st.hist.length) { const d = st.hist.pop(); if (isDir(d)) { st.dir = d; st.sel = null; break; } } render(); }
+    else if (act === "up") go(dirname(st.dir));
+    else if (act === "mkdir") newFolder(st.dir);
+    else if (act === "mkfile") newTextFile(st.dir);
+    else if (act === "import") chooseImport(st.dir);
+  });
+  grid.addEventListener("click", (e) => { const it = e.target.closest(".f-item"); select(it ? it.dataset.path : null); });
+  grid.addEventListener("dblclick", (e) => { const it = e.target.closest(".f-item"); if (it) openPath(it.dataset.path, go); });
+  grid.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    const it = e.target.closest(".f-item");
+    if (it) { select(it.dataset.path); showMenu(itemMenu(it.dataset.path, go), e.clientX, e.clientY); return; }
+    select(null);
+    showMenu([
+      { label: "New folder", icon: "folderPlus", run: () => newFolder(st.dir) },
+      { label: "New text file", icon: "filePlus", run: () => newTextFile(st.dir) },
+      { label: "Import files…", icon: "upload", run: () => chooseImport(st.dir) },
+    ], e.clientX, e.clientY);
+  });
+  grid.addEventListener("keydown", (e) => {
+    const items = $$(".f-item", grid), i = items.findIndex((it) => it.dataset.path === st.sel);
+    if (e.key === "Enter" && st.sel) openPath(st.sel, go);
+    else if ((e.key === "Delete" || (e.key === "Backspace" && e.metaKey)) && st.sel) confirmDelete(st.sel);
+    else if (e.key === "F2" && st.sel) promptRename(st.sel);
+    else if (e.key === "Backspace") go(dirname(st.dir));
+    else if (/^Arrow(Left|Right|Up|Down)$/.test(e.key) && items.length) {
+      const cols = Math.max(1, Math.round(grid.clientWidth / items[0].offsetWidth) || 1);
+      const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -cols, ArrowDown: cols }[e.key];
+      const next = items[clamp(i < 0 ? 0 : i + step, 0, items.length - 1)];
+      select(next.dataset.path);
+      next.scrollIntoView({ block: "nearest" });
+    } else return;
+    e.preventDefault();
+  });
+  grid.addEventListener("dragstart", (e) => { const it = e.target.closest(".f-item"); if (it) startItemDrag(e, it.dataset.path); });
+  wireDrops(body, (t) => {
+    const it = t.closest(".f-item, .f-place, .crumb, .f-grid");
+    if (!it) return null;
+    if (it.classList.contains("f-grid")) return { el: grid, dir: st.dir };
+    const dir = it.dataset.path || it.dataset.go;
+    return isDir(dir) ? { el: it, dir } : { el: grid, dir: st.dir };
+  });
+
+  fsWatchers.add(render);
+  win.onClosed = () => fsWatchers.delete(render);
+  win.onMoved = (remap) => { st.dir = remap(st.dir); st.hist = st.hist.map(remap); if (st.sel) st.sel = remap(st.sel); };
+  win.onFocus = () => { if (!body.contains(document.activeElement)) grid.focus({ preventScroll: true }); };
+  render();
+}
+
+// ---------------------------------------------------------------- Text Editor
+function openEditor(path) {
+  if (path && !isFile(path)) { toast("That file no longer exists."); return null; }
+  if (path) addRecent(path);
+  return openWin({ app: "editor", key: path ? "edit:" + path : null, title: path ? basename(path) : "Untitled",
+    w: 720, h: 500, minW: 340, minH: 240, mount: (w) => mountEditor(w, path) });
+}
+function mountEditor(win, path) {
+  const st = { path, saved: path ? get(path).s : "" };
+  win.body.innerHTML = '<div class="ed"><div class="ed-tool">' +
+    '<button class="btn" data-act="new" title="New file">' + ic("filePlus", 16) + "<span>New</span></button>" +
+    '<button class="btn" data-act="open" title="Open a file">' + ic("open", 16) + "<span>Open</span></button>" +
+    '<button class="btn primary" data-act="save" title="Save (Ctrl+S)">' + ic("save", 16) + "<span>Save</span></button>" +
+    '<button class="btn" data-act="saveas" title="Save as (Ctrl+Shift+S)"><span>Save as…</span></button>' +
+    '<span class="grow"></span><label class="check"><input type="checkbox" data-act="wrap"> Wrap lines</label></div>' +
+    '<textarea class="ed-text well" spellcheck="false" autocomplete="off" aria-label="Text"></textarea>' +
+    '<div class="ed-status"><span class="ed-pos">Ln 1, Col 1</span><span class="ed-count"></span><span class="grow"></span><span class="ed-path"></span></div></div>';
+  const body = win.body, ta = $(".ed-text", body), wrap = $('[data-act="wrap"]', body);
+  ta.value = st.saved;
+  wrap.checked = state.wrap;
+  ta.classList.toggle("nowrap", !state.wrap);
+
+  const dirty = () => ta.value !== st.saved;
+  function refresh() {
+    win.setTitle((dirty() ? "● " : "") + (st.path ? basename(st.path) : "Untitled"));
+    $(".ed-count", body).textContent = ta.value.length.toLocaleString() + " characters";
+    $(".ed-path", body).textContent = st.path || "Not saved yet";
+  }
+  function caret() {
+    const before = ta.value.slice(0, ta.selectionStart);
+    const line = before.split("\n").length, col = ta.selectionStart - before.lastIndexOf("\n");
+    $(".ed-pos", body).textContent = "Ln " + line + ", Col " + col;
+  }
+  async function save(as) {
+    let target = st.path;
+    if (as || !target) {
+      target = await pickPath({ mode: "save", dir: st.path ? dirname(st.path) : "/Documents", name: st.path ? basename(st.path) : "Untitled.txt" });
+      if (!target) return false;
+      const other = [...wins.values()].find((w) => w !== win && w.key === "edit:" + target);
+      if (other) { toast(basename(target) + " is open in another window. Close it first."); return false; }
+      if (target !== st.path && isFile(target)) {
+        const ok = await dialog({ title: "Replace “" + basename(target) + "”?", message: "A file with that name is already in " + (basename(dirname(target)) || "Home") + ".",
+          buttons: [{ label: "Cancel", value: false }, { label: "Replace", value: true, primary: true, danger: true }] });
+        if (!ok) return false;
+      }
+    } else if (!isFile(target)) {
+      st.path = null;
+      return save(true);
+    }
+    const text = ta.value;
+    if (!tryFs(() => { writeFile(target, text); return true; })) return false;
+    if (!saveNow() && storageOk) return false;
+    st.path = target; st.saved = text;
+    win.key = "edit:" + target;
+    addRecent(target);
+    refresh();
+    return true;
+  }
+
+  ta.addEventListener("input", refresh);
+  for (const ev of ["keyup", "click", "select", "input"]) ta.addEventListener(ev, caret);
+  ta.addEventListener("keydown", (e) => {
+    if (e.key === "Tab" && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey) {
+      e.preventDefault();
+      if (!document.execCommand("insertText", false, "\t")) ta.setRangeText("\t", ta.selectionStart, ta.selectionEnd, "end");
+      refresh(); caret();
+    }
+  });
+  body.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); save(e.shiftKey); }
+  });
+  body.addEventListener("click", async (e) => {
+    const b = e.target.closest("button[data-act]");
+    if (!b) return;
+    const act = b.dataset.act;
+    if (act === "new") openEditor(null);
+    else if (act === "open") {
+      const p = await pickPath({ mode: "open", dir: st.path ? dirname(st.path) : "/Documents" });
+      if (p) openEditor(p);
+    } else if (act === "save") save(false);
+    else if (act === "saveas") save(true);
+  });
+  wrap.addEventListener("change", () => {
+    state.wrap = wrap.checked; persist();
+    for (const t of $$(".ed-text")) t.classList.toggle("nowrap", !state.wrap);
+    for (const c of $$('.ed [data-act="wrap"]')) c.checked = state.wrap;
+  });
+
+  win.beforeClose = async () => {
+    if (!dirty()) return true;
+    const r = await dialog({
+      title: "Save changes to “" + (st.path ? basename(st.path) : "Untitled") + "”?",
+      message: "Your changes are lost if you don't save them.",
+      buttons: [{ label: "Don't save", value: "discard" }, { label: "Cancel", value: null }, { label: "Save", value: "save", primary: true }],
+    });
+    if (r === "save") return save(false);
+    return r === "discard";
+  };
+  win.onMoved = (remap) => {
+    if (!st.path) return;
+    st.path = remap(st.path);
+    win.key = "edit:" + st.path;
+    refresh();
+  };
+  // The file went away: keep the text, as an unsaved document.
+  win.onRemoved = (gone) => {
+    if (!st.path || !gone(st.path)) return;
+    st.path = null; st.saved = null; win.key = null;
+    refresh();
+  };
+  win.onFocus = () => { if (!body.contains(document.activeElement)) ta.focus({ preventScroll: true }); };
+  refresh(); caret();
+}
+
+// ---------------------------------------------------------------- Settings
+function openSettings() {
+  return openWin({ app: "settings", key: "settings", title: "Settings", w: 640, h: 560, minW: 340, minH: 300, mount: mountSettings });
+}
+function mountSettings(win) {
+  const thumb = (k) => '<button class="os-style" data-pick="' + k + '"><span class="os-thumb ' + k + '" data-thumb="' + k + '">' +
+    '<i class="t-bar"></i><i class="t-clock"></i><i class="t-win"></i><i class="t-dock"><b></b></i></span><span class="nm">' + esc(STYLES[k].name) + "</span></button>";
+  win.body.innerHTML = '<div class="set">' +
+    "<section><h3>Appearance</h3>" +
+    '<div class="set-lbl">Style</div><div class="os-styles">' + Object.keys(STYLES).map(thumb).join("") + "</div>" +
+    '<div class="set-lbl">Accent color</div><div class="set-row" id="set-swatches"></div>' +
+    '<div class="set-row" style="margin-top:14px"><button class="btn" data-act="reset">Use the server’s look</button>' +
+    '<span class="small muted" id="set-reset-note"></span></div></section>' +
+    "<section><h3>Wallpaper</h3><p>Pictures you import are shrunk to fit " + WP_MAX + " pixels and kept in this web browser, apart from your files.</p>" +
+    '<div class="wp-grid-set" id="set-wp"></div></section>' +
+    "<section><h3>Files</h3><p>Files are kept in this web browser, on this computer, for this desktop only. Clearing the browser’s site data deletes them. " +
+    '<span id="set-usage"></span></p><div class="set-row">' +
+    '<button class="btn" data-act="backup">' + ic("download", 16) + "Download backup</button>" +
+    '<button class="btn" data-act="restore">' + ic("upload", 16) + "Restore backup…</button>" +
+    '<button class="btn danger" data-act="erase">' + ic("trash", 16) + "Erase all files</button></div></section>" +
+    "<section><h3>About</h3><p>Plover desktop for the server “" + esc(CFG.name) + "”. The Browser app streams a Chromium that runs on that server; " +
+    "Files and Text Editor stay in this browser and never reach the server. Terminal runs commands on that server, once you sign in with its terminal password.</p></section></div>";
+  const body = win.body, swatches = $("#set-swatches", body);
+  let shownStyle = null;
+
+  function paint() {
+    const L = look();
+    for (const b of $$(".os-style", body)) b.classList.toggle("active", b.dataset.pick === L.style);
+    for (const t of $$("[data-thumb]", body)) t.style.setProperty("--a", t.dataset.thumb === L.style ? L.accent : STYLES[t.dataset.thumb].accents[0]);
+    // Rebuilt only when the style changes, so an open color picker survives.
+    if (shownStyle !== L.style) {
+      shownStyle = L.style;
+      swatches.innerHTML = STYLES[L.style].accents.map((c) => '<button class="swatch" data-accent="' + c + '" style="background:' + c + '" title="' + c + '" aria-label="Accent ' + c + '"></button>').join("") +
+        '<label class="swatch custom" title="Pick any color"><input type="color" aria-label="Custom accent"></label><span class="hex"></span>';
+      $("input", swatches).addEventListener("input", (e) => setLook(look().style, e.target.value));
+    }
+    let preset = false;
+    for (const s of $$("[data-accent]", swatches)) { const on = s.dataset.accent === L.accent; preset = preset || on; s.classList.toggle("on", on); }
+    $(".custom", swatches).classList.toggle("on", !preset);
+    const input = $("input", swatches);
+    if (input.value !== L.accent) input.value = L.accent;
+    $(".hex", swatches).textContent = L.accent;
+    const custom = Object.hasOwn(STYLES, state.prefs.style);
+    $('[data-act="reset"]', body).disabled = !custom;
+    $("#set-reset-note", body).textContent = custom ? "" : STYLES[CFG.style].name + ", " + CFG.accent + ", as set on the server.";
+    $("#set-usage", body).textContent = "About " + usage() + " used.";
+    paintWp();
+  }
+  function paintWp() {
+    const sel = wpChoice();
+    // Names and pictures go in after parsing: both come from the user.
+    const tile = (id) => '<button class="wp-tile' + (sel === id ? " active" : "") + '" data-wpid="' + esc(id) + '" aria-pressed="' + (sel === id) + '">' +
+      '<span class="wp-thumb"></span><span class="nm"></span></button>';
+    const tiles = [["style", STYLES[look().style].name + " backdrop", ""]];
+    if (SERVER_WP) tiles.push(["server", "From the server", SERVER_WP]);
+    for (const w of wp.list) tiles.push([w.id, w.name, w.data]);
+    const grid = $("#set-wp", body);
+    grid.innerHTML = tiles.map(([id]) => tile(id)).join("") +
+      '<button class="wp-tile" data-act="wp-import"><span class="wp-thumb add">' + ic("upload", 22) + '</span><span class="nm">Import picture…</span></button>';
+    $$(".wp-tile[data-wpid]", grid).forEach((b, i) => {
+      const [id, name, src] = tiles[i];
+      $(".nm", b).textContent = name;
+      b.title = name;
+      if (src) $(".wp-thumb", b).style.backgroundImage = 'url("' + src + '")';
+      if (id !== "style" && id !== "server") {
+        const del = html('<span class="wp-del" role="button" tabindex="0" data-act="wp-del" title="Delete" aria-label="Delete ' + esc(name) + '">' + ic("x", 14, 2) + "</span>");
+        del.dataset.id = id;
+        b.append(del);
+      }
+    });
+  }
+  function setLook(style, accent) {
+    state.prefs = { style, accent: accent.toLowerCase() };
+    applyLook(); persist(); paint();
+  }
+
+  body.addEventListener("click", async (e) => {
+    const s = e.target.closest(".os-style");
+    if (s) return setLook(s.dataset.pick, s.dataset.pick === look().style ? look().accent : STYLES[s.dataset.pick].accents[0]);
+    const sw = e.target.closest("[data-accent]");
+    if (sw) return setLook(look().style, sw.dataset.accent);
+    const del = e.target.closest('[data-act="wp-del"]');
+    if (del) {
+      const w = wp.list.find((x) => x.id === del.dataset.id);
+      const ok = w && await dialog({ title: "Delete this wallpaper?", message: "“" + w.name + "” is removed from this browser.",
+        buttons: [{ label: "Cancel", value: false }, { label: "Delete", value: true, primary: true, danger: true }] });
+      if (ok) { removeWallpaper(w.id); paintWp(); }
+      return;
+    }
+    const t = e.target.closest(".wp-tile[data-wpid]");
+    if (t) { setWallpaper(t.dataset.wpid); paintWp(); return; }
+    const b = e.target.closest("button[data-act]");
+    if (!b) return;
+    const act = b.dataset.act;
+    if (act === "reset") { state.prefs = {}; applyLook(); persist(); paint(); }
+    else if (act === "wp-import") importWallpaper(paintWp);
+    else if (act === "backup") {
+      const stamp = new Date().toISOString().slice(0, 10);
+      download("plover-files-" + stamp + ".json", JSON.stringify({ ploverFiles: 1, fs: state.fs }), "application/json");
+    } else if (act === "restore") restoreBackup(paint);
+    else if (act === "erase") {
+      const ok = await dialog({ title: "Erase all files?", message: "Every file and folder on this desktop is deleted. Download a backup first if you might want them back.",
+        buttons: [{ label: "Cancel", value: false }, { label: "Erase", value: true, primary: true, danger: true }] });
+      if (ok) { replaceTree(freshTree()); paint(); toast("All files erased."); }
+    }
+  });
+  fsWatchers.add(paint);
+  win.onClosed = () => fsWatchers.delete(paint);
+  paint();
+}
+function restoreBackup(after) {
+  const input = html('<input type="file" accept=".json,application/json" hidden>');
+  input.addEventListener("change", async () => {
+    const f = input.files[0];
+    input.remove();
+    if (!f) return;
+    let tree = null;
+    try { const data = JSON.parse(await f.text()); tree = data && data.ploverFiles === 1 ? cleanTree(data.fs) : null; } catch (_) {}
+    if (!tree || tree.t !== "d") { toast(f.name + " isn't a Plover files backup."); return; }
+    const ok = await dialog({ title: "Replace all files with this backup?", message: "Files on this desktop now are replaced by the ones in " + f.name + ".",
+      buttons: [{ label: "Cancel", value: false }, { label: "Replace", value: true, primary: true, danger: true }] });
+    if (!ok) return;
+    replaceTree(tree);
+    if (after) after();
+    toast("Backup restored.");
+  });
+  document.body.append(input);
+  input.click();
+}
+
+// ================================================================ desktop icons
+const iconsEl = $("#icons");
+let deskSel = null, lastPointer = "mouse";
+addEventListener("pointerdown", (e) => { lastPointer = e.pointerType; }, true);
+
+function renderDesktop() {
+  const apps = APP_ORDER.map((a) => '<div class="d-icon" role="button" tabindex="0" draggable="true" data-app="' + a + '" title="' + esc(APPS[a].name) + '">' +
+    '<span class="tile">' + ic(APPS[a].icon, 26) + '</span><span class="lbl">' + esc(APPS[a].name) + "</span></div>");
+  const files = list("/Desktop").map((e) => '<div class="d-icon" role="button" tabindex="0" draggable="true" data-path="' + esc(e.path) + '" title="' + esc(e.name) + '">' +
+    '<span class="tile">' + ic(e.node.t === "d" ? "folder" : "file", 26) + '</span><span class="lbl">' + esc(e.name) + "</span></div>");
+  iconsEl.innerHTML = apps.concat(files).join("");
+  iconsEl.append(spot);
+  // Spots of icons that are gone (deleted, or moved off the desktop) go too.
+  const keys = new Set(deskKeys()), pos = state.desk.pos;
+  for (const k of Object.keys(pos)) if (!keys.has(k)) delete pos[k];
+  placeIcons();
+  markDesk();
+}
+const iconKey = (el) => (el.dataset.app ? "app:" + el.dataset.app : el.dataset.path);
+const deskKeys = () => $$(".d-icon", iconsEl).map(iconKey);
+
+// ---- where icons sit
+// Each icon put somewhere has a spot in state.desk.pos ({x, y} in px within
+// #icons). The rest take the first free grid cell, down each column and then
+// across. With grid snap on, every icon sits on a cell, the nearest free one
+// to where it was put; off, it stays exactly where it was dropped.
+const CW = 96, CH = 108, IW = 84, IH = 100;
+function grid() {
+  const w = iconsEl.clientWidth, h = iconsEl.clientHeight;
+  return { w, h, cols: Math.max(1, Math.floor((w - IW) / CW) + 1), rows: Math.max(1, Math.floor((h - IH) / CH) + 1) };
+}
+const cellAt = (p, g) => ({ c: clamp(Math.round(p.x / CW), 0, g.cols - 1), r: clamp(Math.round(p.y / CH), 0, g.rows - 1) });
+function nearestFree(c, r, g, taken) {
+  if (!taken.has(c + "," + r)) return { c, r };
+  let best = null, bd = Infinity;
+  for (let x = 0; x < g.cols; x++) for (let y = 0; y < g.rows; y++) {
+    const d = (x - c) ** 2 + (y - r) ** 2;
+    if (d < bd && !taken.has(x + "," + y)) { bd = d; best = { c: x, r: y }; }
+  }
+  return best || { c, r };
+}
+// Positions for keys, in order; skip leaves one icon out (it is being moved).
+function layoutIcons(keys, skip) {
+  const g = grid(), pos = state.desk.pos, out = new Map(), taken = new Set();
+  const take = (k, c, r) => { taken.add(c + "," + r); out.set(k, { x: c * CW, y: r * CH }); };
+  for (const k of keys) {
+    if (k === skip || !Object.hasOwn(pos, k)) continue;
+    const at = cellAt(pos[k], g);
+    if (state.desk.snap) { const f = nearestFree(at.c, at.r, g, taken); take(k, f.c, f.r); }
+    else {
+      taken.add(at.c + "," + at.r);
+      out.set(k, { x: clamp(pos[k].x, 0, Math.max(0, g.w - IW)), y: clamp(pos[k].y, 0, Math.max(0, g.h - IH)) });
+    }
+  }
+  let next = 0;
+  for (const k of keys) {
+    if (k === skip || out.has(k)) continue;
+    while (next < g.cols * g.rows && taken.has(Math.floor(next / g.rows) + "," + (next % g.rows))) next++;
+    const n = Math.min(next, g.cols * g.rows - 1);
+    take(k, Math.floor(n / g.rows), n % g.rows);
+  }
+  return { out, taken, g };
+}
+function placeIcons() {
+  const els = $$(".d-icon", iconsEl), { out } = layoutIcons(els.map(iconKey));
+  for (const el of els) { const p = out.get(iconKey(el)); el.style.left = p.x + "px"; el.style.top = p.y + "px"; }
+}
+addEventListener("resize", placeIcons);
+
+function setSnap(on) {
+  if (on) {
+    // Settle every placed icon on the cell it is shown on now.
+    state.desk.snap = true;
+    const { out } = layoutIcons(deskKeys());
+    for (const k of Object.keys(state.desk.pos)) if (out.has(k)) state.desk.pos[k] = out.get(k);
+  } else state.desk.snap = false;
+  persist(); placeIcons();
+}
+function arrangeIcons() { state.desk.pos = {}; persist(); placeIcons(); }
+const deskViewItems = () => [
+  { label: "Snap to grid", icon: state.desk.snap ? "check" : null, run: () => setSnap(!state.desk.snap) },
+  { label: "Arrange icons", icon: "grid", run: arrangeIcons },
+];
+
+// ---- moving icons
+// Icons are dragged with the same drag and drop that moves files between
+// folders. Over a folder the drop still moves the item into it; over the
+// bare desktop it puts the icon where it was let go (or on the nearest free
+// cell, with the outline showing which). Files dragged in from a Files window
+// land there too.
+const spot = html('<div class="d-spot" hidden></div>');
+let dragIcon = null;   // {key, el, dx, dy}: a desktop icon being dragged
+
+function spotFor(e) {
+  if (!dragIcon && !dragPath) return null;
+  const t = e.target;
+  if (!(t instanceof Element) || t.closest(".win, .panel, .scrim, .menu")) return null;
+  const over = t.closest(".d-icon[data-path]");
+  if (over && dragPath && isDir(over.dataset.path) && over.dataset.path !== dragPath && canDrop(e, over.dataset.path)) return null;
+  let key;
+  if (dragIcon) key = dragIcon.key;
+  else {
+    key = joinPath("/Desktop", basename(dragPath));
+    if (dirname(dragPath) !== "/Desktop" && exists(key)) return null;
+  }
+  const r = iconsEl.getBoundingClientRect();
+  const dx = dragIcon ? dragIcon.dx : IW / 2, dy = dragIcon ? dragIcon.dy : 30;
+  const p = { x: e.clientX - r.left - dx, y: e.clientY - r.top - dy };
+  const { taken, g } = layoutIcons(deskKeys(), key);
+  if (state.desk.snap) { const at = cellAt(p, g), f = nearestFree(at.c, at.r, g, taken); return { key, x: f.c * CW, y: f.r * CH }; }
+  return { key, x: clamp(p.x, 0, Math.max(0, g.w - IW)), y: clamp(p.y, 0, Math.max(0, g.h - IH)) };
+}
+
+iconsEl.addEventListener("dragstart", (e) => {
+  const it = e.target.closest(".d-icon");
+  if (!it) return;
+  const r = it.getBoundingClientRect();
+  dragIcon = { key: iconKey(it), el: it, dx: e.clientX - r.left, dy: e.clientY - r.top };
+  if (it.dataset.path) startItemDrag(e, it.dataset.path);
+  else { e.dataTransfer.setData("text/plain", APPS[it.dataset.app].name); e.dataTransfer.effectAllowed = "move"; }
+  // After the browser has taken its picture of the icon for the drag.
+  requestAnimationFrame(() => { if (dragIcon && dragIcon.el === it) it.classList.add("moving"); });
+});
+document.addEventListener("dragend", () => {
+  if (dragIcon) dragIcon.el.classList.remove("moving");
+  dragIcon = null;
+  spot.hidden = true;
+});
+function markDesk() { for (const el of $$(".d-icon", iconsEl)) el.classList.toggle("sel", iconKey(el) === deskSel); }
+function openIcon(el) { if (el.dataset.app) APPS[el.dataset.app].open(); else openPath(el.dataset.path); }
+
+iconsEl.addEventListener("click", (e) => {
+  const it = e.target.closest(".d-icon");
+  deskSel = it ? iconKey(it) : null;
+  markDesk();
+  if (it && lastPointer === "touch") openIcon(it);
+});
+iconsEl.addEventListener("dblclick", (e) => { const it = e.target.closest(".d-icon"); if (it && lastPointer !== "touch") openIcon(it); });
+iconsEl.addEventListener("keydown", (e) => {
+  const it = e.target.closest(".d-icon");
+  if (!it) return;
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openIcon(it); }
+  else if (e.key === "Delete" && it.dataset.path) confirmDelete(it.dataset.path);
+  else if (e.key === "F2" && it.dataset.path) promptRename(it.dataset.path);
+});
+iconsEl.addEventListener("focusin", (e) => { const it = e.target.closest(".d-icon"); if (it) { deskSel = iconKey(it); markDesk(); } });
+
+const desk = $("#desktop");
+desk.addEventListener("pointerdown", (e) => {
+  if (e.target === desk || e.target === iconsEl || e.target.closest(".wp")) { deskSel = null; markDesk(); }
+});
+wireDrops(desk, (t) => {
+  if (t.closest(".win, .panel, .scrim")) return null;
+  const it = t.closest(".d-icon[data-path]");
+  if (it && isDir(it.dataset.path)) return { el: it, dir: it.dataset.path };
+  return { el: null, dir: "/Desktop" };
+});
+desk.addEventListener("dragover", (e) => {
+  const s = spotFor(e);
+  if (!s) { spot.hidden = true; return; }
+  // A desktop icon dropped on the desktop isn't a move to wireDrops; say yes here.
+  if (dragIcon) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }
+  spot.hidden = !state.desk.snap;
+  spot.style.left = s.x + "px"; spot.style.top = s.y + "px";
+});
+// Capture, so the spot is saved before wireDrops moves a file in and the
+// desktop redraws.
+desk.addEventListener("drop", (e) => {
+  const s = spotFor(e);
+  spot.hidden = true;
+  if (!s) return;
+  // The others stay put, rather than flowing into the place this one left.
+  const { out } = layoutIcons(deskKeys());
+  for (const [k, p] of out) if (!Object.hasOwn(state.desk.pos, k)) state.desk.pos[k] = p;
+  state.desk.pos[s.key] = { x: s.x, y: s.y };
+  persist();
+  if (dragIcon) { e.preventDefault(); placeIcons(); }
+}, true);
+desk.addEventListener("dragleave", (e) => { if (!desk.contains(e.relatedTarget)) spot.hidden = true; });
+desk.addEventListener("contextmenu", (e) => {
+  if (e.target.closest("input, textarea")) return;
+  e.preventDefault();
+  if (e.target.closest(".win, .panel, .scrim")) return;
+  const it = e.target.closest(".d-icon");
+  if (it) {
+    deskSel = iconKey(it); markDesk();
+    const items = it.dataset.path ? itemMenu(it.dataset.path) : [{ label: "Open", icon: APPS[it.dataset.app].icon, run: () => openIcon(it) }];
+    showMenu(items, e.clientX, e.clientY);
+    return;
+  }
+  showMenu([
+    { label: "New folder", icon: "folderPlus", run: () => newFolder("/Desktop") },
+    { label: "New text file", icon: "filePlus", run: () => newTextFile("/Desktop") },
+    { label: "Import files…", icon: "upload", run: () => chooseImport("/Desktop") },
+    "-",
+    ...deskViewItems(),
+    "-",
+    { label: "Change wallpaper…", icon: "image", run: openSettings },
+    { label: "Change style…", icon: "sliders", run: openSettings },
+  ], e.clientX, e.clientY);
+});
+
+// ================================================================ top bar
+const MENUS = {
+  file: () => [
+    { label: "New text file", icon: "filePlus", run: () => openEditor(null) },
+    { label: "New folder on Desktop", icon: "folderPlus", run: () => newFolder("/Desktop") },
+    { label: "Import files…", icon: "upload", run: () => chooseImport("/Documents") },
+    "-",
+    { label: "Close window", icon: "x", disabled: !focused, run: () => focused && focused.close() },
+  ],
+  view: () => [
+    { label: "Show desktop", icon: "monitor", disabled: ![...wins.values()].some((w) => !w.min), run: showDesktop },
+    { label: fsOn ? "Exit full screen" : "Full screen", icon: fsOn ? "unfull" : "full", run: toggleFull },
+    "-",
+    ...deskViewItems(),
+    "-",
+    { label: "Style and accent…", icon: "sliders", run: openSettings },
+  ],
+  go: () => [
+    { label: "Home", icon: "home", run: () => openFiles("/") },
+    { label: "Desktop", icon: "monitor", run: () => openFiles("/Desktop") },
+    { label: "Documents", icon: "doc", run: () => openFiles("/Documents") },
+    "-",
+    { label: "Browser", icon: "globe", run: openBrowser },
+    { label: "Terminal", icon: "terminal", run: openTerminal },
+  ],
+};
+for (const b of $$(".tb-menu")) {
+  b.addEventListener("click", () => {
+    if (openMenu && openMenu.anchor === b) return closeMenus();
+    const r = b.getBoundingClientRect();
+    showMenu(MENUS[b.dataset.menu](), r.left, r.bottom + 8, b);
+  });
+  // Moving across the bar with a menu open switches to that menu.
+  b.addEventListener("pointerenter", () => { if (openMenu && openMenu.anchor && openMenu.anchor !== b) b.click(); });
+}
+
+// Full screen (the button or the View menu) hides the top bar and the dock:
+// they slide back in, over everything, while the pointer is at the top or
+// bottom edge. The window
+// in front fills the whole screen, and the next one does when it comes to
+// the front. If the browser refuses full screen (some embeds do), the same
+// happens within the tab. Esc leaves it.
+let fsOn = false, fsInTab = false;
+function setFullWin(w) {
+  if (fullWin && fullWin !== w) fullWin.el.classList.remove("full");
+  fullWin = w;
+  if (w) w.el.classList.add("full");
+  document.body.classList.toggle("fullwin", !!w);
+}
+// The window in front fills the screen while full screen is on.
+function syncFullWin() { setFullWin(fsOn && focused && !focused.min ? focused : null); }
+// The bars hide (and come in from the edges) in full screen, and while the
+// window in front is maximized.
+function syncBars() {
+  const hide = fsOn || !!(focused && focused.max && !focused.min), body = document.body;
+  if (hide === body.classList.contains("hidebars")) return;
+  body.classList.toggle("hidebars", hide);
+  if (!hide) body.classList.remove("show-top", "show-bottom");
+}
+function syncFull() {
+  const on = !!document.fullscreenElement || fsInTab;
+  if (on !== fsOn) {
+    fsOn = on;
+    document.body.classList.toggle("fs", on);
+    syncFullWin();
+    syncBars();
+    for (const w of wins.values()) place(w);
+  }
+  fullBtn.innerHTML = ic(on ? "unfull" : "full", 16, 2);
+  fullBtn.title = on ? "Exit full screen" : "Full screen";
+  fullBtn.setAttribute("aria-label", fullBtn.title);
+}
+function leaveFull() {
+  fsInTab = false;
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  syncFull();
+}
+function toggleFull() {
+  if (fsOn) { leaveFull(); return; }
+  const req = document.documentElement.requestFullscreen ? document.documentElement.requestFullscreen() : Promise.reject();
+  req.catch(() => { fsInTab = true; syncFull(); toast("Full screen within this tab. Press Esc to leave it."); });
+}
+const fullBtn = $("#tb-full");
+fullBtn.addEventListener("click", toggleFull);
+document.addEventListener("fullscreenchange", syncFull);
+
+// ---- the bars in full screen
+// A thin strip along each edge, above the windows (so above the Browser's
+// frame too, which would otherwise swallow the pointer), brings its bar in.
+// It goes away once the pointer leaves it, unless one of its menus is open.
+const edgeTop = html('<div class="fs-edge top" aria-hidden="true"></div>'), edgeBottom = html('<div class="fs-edge bottom" aria-hidden="true"></div>');
+$("#desktop").append(edgeTop, edgeBottom);
+let barTimer = 0;
+function showBar(which) { clearTimeout(barTimer); document.body.classList.add("show-" + which); }
+function hideBars() {
+  clearTimeout(barTimer);
+  barTimer = setTimeout(() => {
+    const body = document.body;
+    const keepTop = topbar.matches(":hover") || (openMenu && openMenu.anchor && topbar.contains(openMenu.anchor)) || (openMenu && openMenu.el.matches(":hover"));
+    const keepBottom = dock.matches(":hover") || !startEl.hidden;
+    if (!keepTop) body.classList.remove("show-top");
+    if (!keepBottom) body.classList.remove("show-bottom");
+  }, 350);
+}
+edgeTop.addEventListener("pointerenter", () => showBar("top"));
+edgeBottom.addEventListener("pointerenter", () => showBar("bottom"));
+for (const el of [edgeTop, edgeBottom]) el.addEventListener("pointerleave", hideBars);
+for (const el of [topbar, dock]) {
+  el.addEventListener("pointerenter", () => showBar(el === topbar ? "top" : "bottom"));
+  el.addEventListener("pointerleave", hideBars);
+}
+document.addEventListener("pointerleave", hideBars);
+
+// ---- status: a socket of its own to the server, for ping and memory
+// It signs in with the token in "status" mode, which never starts a session.
+const PING_EVERY = 5000;
+const net = { ws: null, up: false, rtt: null, mem: null, sentAt: 0, timer: 0, retry: 0, backoff: 2000, refused: false };
+const hasServer = BUILT && !!CFG.server && !!CFG.token;
+
+function statusConnect() {
+  if (!hasServer || net.ws || net.refused) return;
+  clearTimeout(net.retry);
+  let sock;
+  try { sock = new WebSocket(CFG.server); } catch (_) { return; }
+  net.ws = sock;
+  sock.binaryType = "arraybuffer";
+  sock.onopen = () => sock.send(JSON.stringify({ t: "auth", proto: 1, mode: "status", token: CFG.token, client: { device: "Web OS status" } }));
+  sock.onmessage = (e) => {
+    if (net.ws !== sock) return;
+    let m = null;
+    try {
+      const b = typeof e.data === "string" ? null : new Uint8Array(e.data);
+      m = b ? (b[0] === 0 ? JSON.parse(new TextDecoder().decode(b.subarray(1))) : null) : JSON.parse(e.data);
+    } catch (_) {}
+    if (!m) return;
+    if (m.t === "status.ready") {
+      net.up = true; net.backoff = 2000;
+      clearInterval(net.timer);
+      net.timer = setInterval(statusPing, PING_EVERY);
+      statusPing();
+    } else if (m.t === "pong") {
+      if (net.sentAt) net.rtt = performance.now() - net.sentAt;
+      net.sentAt = 0;
+      if (m.mem && m.mem.total > 0) net.mem = { total: +m.mem.total, used: +m.mem.used };
+    } else return;
+    syncNet(); syncRam();
+  };
+  sock.onclose = (e) => {
+    if (net.ws !== sock) return;
+    net.ws = null; net.up = false; net.rtt = null; net.sentAt = 0;
+    clearInterval(net.timer);
+    syncNet(); syncRam();
+    if (e.code === 4401) { net.refused = true; return; }
+    net.retry = setTimeout(statusConnect, net.backoff);
+    net.backoff = Math.min(net.backoff * 2, 60000);
+  };
+}
+// A ping unanswered for 15 seconds means the connection is gone.
+function statusPing() {
+  if (!net.up) return;
+  if (net.sentAt) { if (performance.now() - net.sentAt > 15000) net.ws.close(); return; }
+  net.sentAt = performance.now();
+  net.ws.send(JSON.stringify({ t: "ping", ts: Date.now() }));
+}
+addEventListener("online", () => { net.backoff = 2000; statusConnect(); syncNet(); });
+addEventListener("offline", syncNet);
+
+const GB = 1073741824;
+const fmtGB = (n) => (n / GB).toFixed(n < 10 * GB ? 1 : 0) + " GB";
+const pingClass = (ms) => (ms == null ? "" : ms < 80 ? "good" : ms < 200 ? "ok" : "bad");
+const pingWord = (ms) => (ms == null ? "" : ms < 80 ? "Good" : ms < 200 ? "Fair" : "Slow");
+
+const netBtn = $("#tb-net");
+function syncNet() {
+  const on = navigator.onLine && (!hasServer || net.up);
+  netBtn.innerHTML = ic(on ? "wifi" : "wifiOff", 16, 2);
+  netBtn.title = !navigator.onLine ? "Offline" : !hasServer ? "Connection" : net.rtt != null ? "Ping " + (net.rtt < 1 ? "<1" : Math.round(net.rtt)) + " ms" : net.up ? "Connected" : "Not connected to the server";
+  netBtn.setAttribute("aria-label", netBtn.title);
+  paintNetPop();
+}
+
+const ramEl = $("#tb-ram");
+function syncRam() {
+  const m = net.mem;
+  ramEl.hidden = !m;
+  if (!m) return;
+  const pct = Math.round(m.used / m.total * 100);
+  ramEl.innerHTML = ic("ram", 16, 2) + pct + "%";
+  ramEl.title = "Server memory: " + fmtGB(m.used) + " of " + fmtGB(m.total) + " in use";
+}
+
+// Clicking the wifi icon shows the round trip to the server, kept fresh by
+// the pings above while it is open.
+function openNetPop() {
+  closeMenus(); closeStart();
+  const m = html('<div class="menu panel net-pop" role="dialog" aria-label="Connection"></div>');
+  $("#desktop").append(m);
+  netBtn.classList.add("open");
+  openMenu = { el: m, anchor: netBtn };
+  paintNetPop();
+  const r = netBtn.getBoundingClientRect(), w = m.getBoundingClientRect().width;
+  m.style.left = clamp(r.right - w, 8, innerWidth - w - 8) + "px";
+  m.style.top = r.bottom + 8 + "px";
+  statusConnect();
+}
+function paintNetPop() {
+  const m = openMenu && openMenu.anchor === netBtn ? openMenu.el : null;
+  if (!m) return;
+  let head, dot = "";
+  if (!navigator.onLine) head = "Offline";
+  else if (!hasServer) head = "No server: this desktop is a preview";
+  else if (net.refused) head = "The server refused this desktop’s token";
+  else if (!net.up) head = "Connecting to " + CFG.name + "…";
+  else { head = "Connected to " + CFG.name; dot = pingClass(net.rtt); }
+  const rtt = net.up && net.rtt != null ? Math.round(net.rtt) : null;
+  let out = '<div class="np-head"><i class="np-dot ' + dot + '"></i><span></span></div>' +
+    '<div class="np-ping">' + (rtt == null ? "—" : rtt < 1 ? "&lt;1" : rtt) + "<small>ms ping" + (rtt == null ? "" : " · " + pingWord(rtt)) + "</small></div>";
+  if (net.mem) {
+    const pct = Math.round(net.mem.used / net.mem.total * 100);
+    out += '<div class="np-row"><span>Server memory</span><b>' + fmtGB(net.mem.used) + " / " + fmtGB(net.mem.total) + " · " + pct + "%</b></div>" +
+      '<div class="np-bar"><i style="width:' + pct + '%"></i></div>';
+  }
+  if (hasServer) {
+    let host = "";
+    try { host = new URL(CFG.server).host; } catch (_) {}
+    if (host) out += '<div class="np-row"><span>Server</span><b class="np-host"></b></div>';
+    m.innerHTML = out;
+    if (host) $(".np-host", m).textContent = host;
+  } else m.innerHTML = out;
+  $(".np-head span", m).textContent = head;
+}
+netBtn.addEventListener("click", () => (openMenu && openMenu.anchor === netBtn ? closeMenus() : openNetPop()));
+
+const ck = { day: $(".ck-day"), ampm: $(".ck-ampm"), time: $(".ck-time"), date: $(".ck-date") };
+function tick() {
+  const d = new Date(), h = d.getHours();
+  const set = (el, v) => { if (el.textContent !== v) el.textContent = v; };
+  set(ck.day, d.toLocaleDateString([], { weekday: "long" }));
+  set(ck.ampm, h < 12 ? "AM" : "PM");
+  set(ck.time, (h % 12 || 12) + ":" + String(d.getMinutes()).padStart(2, "0"));
+  set(ck.date, d.toLocaleDateString());
+}
+
+// ================================================================ dock and start
+const dockApps = $("#dock-apps"), startEl = $("#start"), startBtn = $("#start-btn"), searchBtn = $("#search-btn"), smQ = $("#sm-q");
+startBtn.innerHTML = ic("grid", 18, 2) + "<span>Start</span>";
+searchBtn.innerHTML = ic("search", 17, 2) + '<span class="s-lbl">Search</span><span class="s-caret"></span><kbd>Ctrl K</kbd>';
+$("#sm-ic").outerHTML = ic("search", 16, 2);
+$("#sm-server").textContent = CFG.name;
+dockApps.innerHTML = APP_ORDER.map((a) => '<button class="dk" data-app="' + a + '" title="' + esc(APPS[a].name) + '" aria-label="' + esc(APPS[a].name) + '">' +
+  ic(APPS[a].icon, 22) + '<i class="dk-dot"></i></button>').join("");
+
+// One click on an app: open it, bring it forward, or tuck it away when it is
+// already in front.
+dockApps.addEventListener("click", (e) => {
+  const b = e.target.closest(".dk");
+  if (!b) return;
+  const mine = [...wins.values()].filter((w) => w.app === b.dataset.app).sort((x, y) => x.el.style.zIndex - y.el.style.zIndex);
+  if (!mine.length) return APPS[b.dataset.app].open();
+  const top = mine[mine.length - 1];
+  if (top === focused && !top.min) top.minimize();
+  else focusWin(mine.filter((w) => !w.min).pop() || top);
+});
+
+function syncChrome() {
+  for (const b of $$(".dk", dockApps)) {
+    const open = [...wins.values()].some((w) => w.app === b.dataset.app);
+    b.classList.toggle("open", open);
+  }
+  $("#tb-app").textContent = focused ? APPS[focused.app].name : "Desktop";
+  syncFullWin();
+  syncBars();
+}
+
+let hot = 0, results = [];
+function openStart() {
+  closeMenus();
+  startEl.hidden = false;
+  startBtn.classList.add("on");
+  smQ.value = "";
+  renderStart();
+  smQ.focus();
+}
+function closeStart() {
+  if (startEl.hidden) return;
+  startEl.hidden = true;
+  startBtn.classList.remove("on");
+  if (document.body.classList.contains("hidebars")) hideBars();
+}
+function row(r, i) {
+  return '<button class="sm-row' + (i === hot ? " hot" : "") + '" data-i="' + i + '">' + ic(r.icon, 18) +
+    '<span class="sm-txt"><span class="sm-name">' + esc(r.name) + "</span>" + (r.sub ? '<span class="sm-path">' + esc(r.sub) + "</span>" : "") + "</span></button>";
+}
+function renderStart() {
+  const q = smQ.value.trim().toLowerCase();
+  const appsEl = $("#sm-apps"), listEl = $("#sm-list");
+  hot = 0;
+  if (!q) {
+    $("#sm-apps-lbl").hidden = appsEl.hidden = false;
+    $("#sm-list-lbl").textContent = "Recent";
+    appsEl.innerHTML = APP_ORDER.map((a) => '<button class="sm-app" data-app="' + a + '"><span class="tile">' + ic(APPS[a].icon, 20) + "</span>" + esc(APPS[a].name) + "</button>").join("");
+    results = state.recent.filter(isFile).slice(0, 6).map((p) => ({ name: basename(p), sub: dirname(p), icon: "file", path: p }));
+    hot = -1;
+    listEl.innerHTML = results.length ? results.map(row).join("") : '<div class="sm-none">Files you open show up here.</div>';
+    return;
+  }
+  $("#sm-apps-lbl").hidden = appsEl.hidden = true;
+  $("#sm-list-lbl").textContent = "Results";
+  results = APP_ORDER.filter((a) => APPS[a].name.toLowerCase().includes(q)).map((a) => ({ name: APPS[a].name, sub: "App", icon: APPS[a].icon, app: a }))
+    .concat(walk().filter((e) => e.name.toLowerCase().includes(q)).slice(0, 12)
+      .map((e) => ({ name: e.name, sub: dirname(e.path), icon: e.node.t === "d" ? "folder" : "file", path: e.path })));
+  listEl.innerHTML = results.length ? results.map(row).join("") : '<div class="sm-none">Nothing matches “' + esc(smQ.value.trim()) + "”.</div>";
+}
+function launch(r) {
+  closeStart();
+  if (r.app) APPS[r.app].open();
+  else openPath(r.path);
+}
+startBtn.addEventListener("click", () => (startEl.hidden ? openStart() : closeStart()));
+searchBtn.addEventListener("click", () => (startEl.hidden ? openStart() : closeStart()));
+smQ.addEventListener("input", renderStart);
+smQ.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && results.length) { e.preventDefault(); launch(results[Math.max(0, hot)]); }
+  else if ((e.key === "ArrowDown" || e.key === "ArrowUp") && results.length) {
+    e.preventDefault();
+    hot = (Math.max(hot, e.key === "ArrowDown" ? -1 : 0) + (e.key === "ArrowDown" ? 1 : -1) + results.length) % results.length;
+    $$(".sm-row", startEl).forEach((r, i) => r.classList.toggle("hot", i === hot));
+  }
+});
+startEl.addEventListener("click", (e) => {
+  const a = e.target.closest(".sm-app");
+  if (a) { closeStart(); APPS[a.dataset.app].open(); return; }
+  const r = e.target.closest(".sm-row");
+  if (r) launch(results[+r.dataset.i]);
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && fsInTab) { leaveFull(); return; }
+  if (e.key === "Escape") { if (openMenu) { closeMenus(); e.preventDefault(); } else if (!startEl.hidden) { closeStart(); startBtn.focus(); } }
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "k") {
+    e.preventDefault();
+    if (startEl.hidden) openStart(); else closeStart();
+  }
+});
+
+// ================================================================ start up
+document.title = CFG.name + " · Plover";
+applyLook();
+applyWallpaper();
+statusConnect();
+syncNet(); syncFull(); tick();
+setInterval(tick, 1000);
+fsWatchers.add(renderDesktop);
+renderDesktop();
+syncChrome();
+if (!storageOk) toast("This browser isn't letting the desktop save, so files last only until the page closes.");
+})();
+</script>
+</body>
+</html>

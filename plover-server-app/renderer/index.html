@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+<title>Plover Server</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<aside class="side">
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
+      <defs>
+        <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#14b8a6"/><stop offset="1" stop-color="#0ea5e9"/></linearGradient>
+        <mask id="lk"><rect width="16" height="16" fill="#fff"/><circle cx="8.5" cy="7" r="3.5" fill="#000"/></mask>
+      </defs>
+      <rect width="32" height="32" rx="9" fill="url(#lg)"/>
+      <g transform="translate(3.6 4) scale(1.55)">
+        <g mask="url(#lk)">
+          <circle r="5.79" cx="9.39" cy="8.12" fill="#fff" fill-opacity=".04" stroke="#fff" stroke-width="1.25"/>
+          <polyline fill="none" stroke="#fff" stroke-width="1.25" points="4.5 5 .89 7.67 4 10.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M3.86 10.11 15.2 7.74 14.34 10.93 12.22 13.22 8.95 14.03 6.28 12.78 4.49 11.18Z" fill="#fff"/>
+        </g>
+        <circle r="1.94" cx="8.5" cy="7" fill="none" stroke="#fff" stroke-width="1.25"/>
+      </g>
+    </svg>
+    <div><div class="brand-name">Plover v1.1</div><div class="brand-sub">Browser streaming</div></div>
+  </div>
+  <div class="side-label">Servers</div>
+  <ul id="server-list" class="server-list"></ul>
+  <button class="btn btn-new" data-action="new">+ New server</button>
+</aside>
+<main class="main">
+  <div id="main"></div>
+</main>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script src="app.js"></script>
+</body>
+</html>
